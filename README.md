@@ -1,15 +1,15 @@
 # ZScribe Intake Agent
 
-AI-powered medical intake agent that makes outbound calls to collect patient information before appointments.
+AI-powered medical intake agent that makes outbound calls to collect patient information before appointments using dynamic templates from database.
 
 ## Features
 
 - 🤖 **AI Agent**: Uses Google Gemini for natural conversations
 - 📞 **Outbound Calls**: Makes calls via Telnyx SIP trunk
 - 🎤 **Speech Processing**: Deepgram STT + Cartesia TTS
-- 📝 **Transcripts**: Automatic conversation recording and saving
-- 📋 **Templates**: Configurable intake questionnaires
+- 📋 **Dynamic Templates**: Database-driven intake questionnaires via API
 - 🔄 **State Management**: Tracks conversation progress
+- 🌐 **API Integration**: FastAPI server with Supabase database
 
 ## Quick Start
 
@@ -24,12 +24,17 @@ AI-powered medical intake agent that makes outbound calls to collect patient inf
    # Edit .env with your API keys
    ```
 
-3. **Run the agent:**
+3. **Start the API server:**
+   ```bash
+   python api_server.py
+   ```
+
+4. **Run the agent:**
    ```bash
    python src/calling_agent.py dev
    ```
 
-4. **Make a test call:**
+5. **Make a test call:**
    ```bash
    python src/make_call.py
    ```
@@ -44,23 +49,38 @@ Required in `.env`:
 - `GOOGLE_API_KEY`
 - `DEEPGRAM_API_KEY`
 - `CARTESIA_API_KEY`
+- `SUPABASE_URL`
+- `SUPABASE_KEY`
 
 ## Project Structure
 
 ```
-src/
-├── calling_agent.py      # Main agent
-├── make_call.py         # Call initiation
-├── prompts.py           # Agent instructions
-├── tools.py             # Transcript tools
-├── state.py             # Conversation state
-└── predefined_templates.py # Intake templates
+├── api_server.py           # FastAPI server for templates
+├── api_client.py           # API client for database access
+├── src/
+│   ├── calling_agent.py    # Main agent
+│   ├── make_call.py        # Call initiation
+│   ├── prompts.py          # Dynamic prompt generation
+│   ├── tools.py            # Transcript tools
+│   ├── state.py            # Conversation state
+│   └── predefined_templates.py # Legacy templates (deprecated)
+└── data/
+    └── transcripts/        # Saved conversation transcripts
 ```
+
+## API Endpoints
+
+- `GET /templates/{template_id}` - Fetch template by ID
+- `GET /health` - Health check
+- `GET /debug/templates` - Debug all templates
 
 ## Templates
 
-- **General Intake**: Standard medical questionnaire
-- **Cardiology**: Heart-specific questions
+Templates are now stored in Supabase database and fetched dynamically via API. Each template contains:
+- Template name and structure
+- AI instructions
+- Specific questions to ask
+- Template type (intake/encounter)
 
 ## License
 

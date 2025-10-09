@@ -1,0 +1,11 @@
+livekit-agents>=1.2.0
+livekit-plugins-assemblyai>=0.1.0
+livekit-plugins-deepgram>=0.1.0
+livekit-plugins-silero>=0.1.0
+livekit-plugins-cartesia>=0.1.0
+google-generativeai>=0.3.0
+python-dotenv>=1.0.0
+fastapi>=0.104.0
+uvicorn>=0.24.0
+supabase>=2.0.0
+httpx>=0.25.0

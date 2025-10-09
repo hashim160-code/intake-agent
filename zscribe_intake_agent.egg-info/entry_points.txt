@@ -1,0 +1,3 @@
+[console_scripts]
+intake-agent = src.calling_agent:main
+make-call = src.make_call:main
