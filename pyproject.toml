@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "zscribe-intake-agent"
+version = "0.1.0"
+description = "AI-powered medical intake agent for ZScribe platform"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [
+    {name = "ZScribe Team", email = "team@zscribe.com"},
+]
+
+dependencies = [
+    "livekit-agents>=1.2.0",
+    "livekit-plugins-assemblyai>=0.1.0",
+    "livekit-plugins-deepgram>=0.1.0", 
+    "livekit-plugins-silero>=0.1.0",
+    "livekit-plugins-cartesia>=0.1.0",
+    "google-generativeai>=0.3.0",
+    "python-dotenv>=1.0.0",
+]
+
+[project.scripts]
+intake-agent = "src.calling_agent:main"
+make-call = "src.make_call:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
