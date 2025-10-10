@@ -25,10 +25,12 @@ async def health_check():
 
 @app.get("/templates/{template_id}")
 async def get_template(template_id: str):
-    """Fetch a specific template by ID with all fields"""
+    """Fetch specific template fields by ID"""
     try:
-        # Query the templates table with all fields
-        response = supabase.table("templates").select("*").eq("id", template_id).execute()
+        # Select only required fields
+        response = supabase.table("templates").select(
+            "id, template_name, instructions_for_ai, questions"
+        ).eq("id", template_id).execute()
         
         if response.data and len(response.data) > 0:
             template = response.data[0]
@@ -37,17 +39,60 @@ async def get_template(template_id: str):
                 "template": {
                     "id": template["id"],
                     "template_name": template["template_name"],
-                    "structure": template["structure"],
                     "instructions_for_ai": template["instructions_for_ai"],
-                    "template_type": template["template_type"],
-                    "questions": template["questions"],
-                    "organization_id": template["organization_id"],
-                    "created_at": template["created_at"],
-                    "updated_at": template["updated_at"]
+                    "questions": template["questions"]
                 }
             }
         else:
             return {"success": False, "message": "Template not found"}
+            
+    except Exception as e:
+        return {"success": False, "message": f"Error: {str(e)}"}
+
+@app.get("/patients/{patient_id}")
+async def get_patient(patient_id: str):
+    """Fetch patient name by ID"""
+    try:
+        # Select only full_name
+        response = supabase.table("patients").select(
+            "id, full_name"
+        ).eq("id", patient_id).execute()
+        
+        if response.data and len(response.data) > 0:
+            patient = response.data[0]
+            return {
+                "success": True,
+                "patient": {
+                    "id": patient["id"],
+                    "full_name": patient["full_name"]
+                }
+            }
+        else:
+            return {"success": False, "message": "Patient not found"}
+            
+    except Exception as e:
+        return {"success": False, "message": f"Error: {str(e)}"}
+
+@app.get("/organizations/{organization_id}")
+async def get_organization(organization_id: str):
+    """Fetch organization name by ID"""
+    try:
+        # Select only id and name
+        response = supabase.table("organizations").select(
+            "id, name"
+        ).eq("id", organization_id).execute()
+        
+        if response.data and len(response.data) > 0:
+            organization = response.data[0]
+            return {
+                "success": True,
+                "organization": {
+                    "id": organization["id"],
+                    "name": organization["name"]
+                }
+            }
+        else:
+            return {"success": False, "message": "Organization not found"}
             
     except Exception as e:
         return {"success": False, "message": f"Error: {str(e)}"}

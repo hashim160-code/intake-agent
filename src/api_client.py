@@ -1,5 +1,5 @@
 """
-API client for fetching templates from database
+API client for fetching data from database
 """
 
 import httpx
@@ -38,6 +38,64 @@ async def fetch_template_from_api(template_id: str) -> Optional[Dict]:
                 
     except Exception as e:
         print(f"Error fetching template: {e}")
+        return None
+
+async def fetch_patient_from_api(patient_id: str) -> Optional[Dict]:
+    """
+    Fetch patient data from the API
+    
+    Args:
+        patient_id (str): The UUID of the patient to fetch
+        
+    Returns:
+        Dict: Patient data or None if not found
+    """
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(f"{API_BASE_URL}/patients/{patient_id}")
+            
+            if response.status_code == 200:
+                data = response.json()
+                if data.get("success"):
+                    return data.get("patient")
+                else:
+                    print(f"API Error: {data.get('message')}")
+                    return None
+            else:
+                print(f"HTTP Error: {response.status_code}")
+                return None
+                
+    except Exception as e:
+        print(f"Error fetching patient: {e}")
+        return None
+
+async def fetch_organization_from_api(organization_id: str) -> Optional[Dict]:
+    """
+    Fetch organization data from the API
+    
+    Args:
+        organization_id (str): The UUID of the organization to fetch
+        
+    Returns:
+        Dict: Organization data or None if not found
+    """
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(f"{API_BASE_URL}/organizations/{organization_id}")
+            
+            if response.status_code == 200:
+                data = response.json()
+                if data.get("success"):
+                    return data.get("organization")
+                else:
+                    print(f"API Error: {data.get('message')}")
+                    return None
+            else:
+                print(f"HTTP Error: {response.status_code}")
+                return None
+                
+    except Exception as e:
+        print(f"Error fetching organization: {e}")
         return None
 
 async def test_api_connection() -> bool:
