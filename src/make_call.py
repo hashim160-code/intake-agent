@@ -15,7 +15,6 @@ logger.setLevel(logging.INFO)
 
 # Configuration
 room_name = "my-room"
-agent_name = "test-agent"
 outbound_trunk_id = os.getenv("SIP_OUTBOUND_TRUNK_ID")
 
 async def make_call(phone_number: str, template_id: str, organization_id: str, 
@@ -96,8 +95,8 @@ async def main():
     # Test data
     phone_number = "+12146996918"
     template_id = "bd9a2e9e-cdab-44d6-9882-58fc75ea9cda"
-    organization_id = "30f9486b-a049-45cd-ba2e-554d8ac06f92"
-    patient_id = "4b3a1edb-76c5-46f4-ad0f-3c164348202b"
+    organization_id = "7172216f-0703-4ea8-9c64-39c5d121e0a8"
+    patient_id = "691ca428-4adb-44f8-a66d-aef89027abf0"
     
     await make_call(phone_number, template_id, organization_id, patient_id, appointment_details)
 
