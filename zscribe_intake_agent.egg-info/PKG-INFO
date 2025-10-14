@@ -10,6 +10,7 @@ Requires-Dist: livekit-plugins-assemblyai>=0.1.0
 Requires-Dist: livekit-plugins-deepgram>=0.1.0
 Requires-Dist: livekit-plugins-silero>=0.1.0
 Requires-Dist: livekit-plugins-cartesia>=0.1.0
+Requires-Dist: livekit-agents[google]~=1.2
 Requires-Dist: google-generativeai>=0.3.0
 Requires-Dist: python-dotenv>=1.0.0
 Requires-Dist: fastapi>=0.104.0

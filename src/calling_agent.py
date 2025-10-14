@@ -9,9 +9,11 @@ from dotenv import load_dotenv
 from livekit.agents import JobContext, WorkerOptions, cli
 from livekit.agents.voice import Agent
 from livekit.agents import AgentSession, inference
-from livekit.plugins import silero, deepgram
+from livekit.plugins import silero, deepgram, google
 from src.prompts import generate_instructions_from_api, get_fallback_instructions
-
+from datetime import datetime
+import json
+from livekit import api
 load_dotenv()
 
 logger = logging.getLogger("calling-agent")
@@ -19,6 +21,14 @@ logger.setLevel(logging.INFO)
 
 # Pre-load VAD model to avoid timeout during job acceptance
 _vad_model = silero.VAD.load()
+# new one - tuned a little bit
+# _vad_model = silero.VAD.load(
+#     # min_speech_duration=0.05,        # Minimum duration to start detecting speech
+#     min_silence_duration=0.1,        # KEY: Wait 0.1 second of silence before ending turn
+#     # prefix_padding_duration=0.5,     # Add padding at start of speech
+#     activation_threshold=0.35,        # Lower threshold = more sensitive (0.5 default)
+#     # sample_rate=16000
+# )
 
 class IntakeAgent(Agent):
     def __init__(self, template_id: str, organization_id: str, patient_id: str, 
@@ -33,16 +43,15 @@ class IntakeAgent(Agent):
         
         super().__init__(
             instructions=instructions,
-            stt="assemblyai/universal-streaming",
-            llm=inference.LLM(
-                model="google/gemini-2.0-flash",
-                extra_kwargs={
-                    "max_completion_tokens": 800,
-                    "temperature": 0.7
-                }
+            stt=deepgram.STT(
+                interim_results=True,
+                endpointing_ms=500,          # KEY: Wait 500ms before finalizing transcript
+                punctuate=True,
+                smart_format=True
             ),
-            tts="cartesia/sonic-2:6f84f4b8-58a2-430c-8c79-688dad597532",
-            vad=_vad_model  # Use pre-loaded VAD
+            llm=google.LLM(model="gemini-2.0-flash",),    # Google Gemini
+            tts=deepgram.TTS(model="aura-asteria-en"),   # Deepgram TTS
+            vad=_vad_model
         )
 
     async def on_enter(self):
@@ -74,6 +83,9 @@ class IntakeAgent(Agent):
             logger.error("Using fallback instructions instead")
 
         self.session.generate_reply()
+        async def on_user_turn_completed(self, turn_ctx, new_message):
+            """Log each user message"""
+            logger.info(f"User: {new_message.text_content()}")
 
 
 async def entrypoint(ctx: JobContext):
@@ -142,9 +154,8 @@ async def entrypoint(ctx: JobContext):
         organization_id,
         patient_id,
     )
-
+    
     session = AgentSession()
-
     await session.start(
         agent=IntakeAgent(
             template_id=template_id,
@@ -154,7 +165,28 @@ async def entrypoint(ctx: JobContext):
         ),
         room=ctx.room,
     )
-
+    
+    # Save transcript when session ends
+    async def save_transcript():
+        try:
+            # Create transcripts folder if it doesn't exist
+            os.makedirs("transcripts", exist_ok=True)
+            
+            # Create filename with timestamp
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            filename = f"transcripts/transcript_{ctx.room.name}_{timestamp}.json"
+            
+            # Save conversation history
+            with open(filename, 'w', encoding='utf-8') as f:
+                json.dump(session.history.to_dict(), f, indent=2, ensure_ascii=False)
+            
+            logger.info(f"✅ Transcript saved: {filename}")
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to save transcript: {e}", exc_info=True)
+    
+    # Register the callback to run when session ends
+    ctx.add_shutdown_callback(save_transcript)
 
 if __name__ == "__main__":
     cli.run_app(

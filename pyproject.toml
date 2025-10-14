@@ -18,6 +18,7 @@ dependencies = [
     "livekit-plugins-deepgram>=0.1.0", 
     "livekit-plugins-silero>=0.1.0",
     "livekit-plugins-cartesia>=0.1.0",
+     "livekit-agents[google]~=1.2",
     "google-generativeai>=0.3.0",
     "python-dotenv>=1.0.0",
     "fastapi>=0.104.0",
