@@ -2,7 +2,7 @@
 
 ---
 
-## Current Implementation Flow
+## Current(things that I done so far) Implementation Flow
 
 ### Architecture Diagram
 
@@ -311,7 +311,7 @@ GET https://api.telnyx.com/v2/recordings
 
 ---
 
-## Future Implementation Plan
+## Remaining Implementation Plan
 
 ### **Phase 1: Database Integration** (Next)
 
@@ -397,7 +397,7 @@ graph LR
 
 1. **Trigger:** When transcript is saved to database
 2. **Background Task:** Runs asynchronously (doesn't block)
-3. **LLM:** Uses OpenAI/Gemini to generate structured notes
+3. **LLM:** Uses Gemini to generate structured notes
 4. **Template:** Follows medical intake format
 5. **Time:** ~20 seconds after call ends
 
