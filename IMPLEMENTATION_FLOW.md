@@ -585,20 +585,6 @@ POST /api/transcripts/{transcript_id}/retry-notes
 3. Save notes to database
 4. Display notes in frontend
 
----
-
-## Success Metrics
-
-| Metric | Current Status |
-|--------|----------------|
-| **Call Success Rate** | 95%+ |
-| **Transcript Accuracy** | 99%+ |
-| **Response Time** | 1.5 seconds |
-| **Dynamic Prompts** | ✅ Working |
-| **Recording Quality** | Dual channel, clear |
-| **Data Storage** | Local files (transcript) + Telnyx (recording) |
-
----
 
 ## Summary
 
