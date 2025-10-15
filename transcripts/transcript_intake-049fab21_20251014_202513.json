@@ -1,0 +1,61 @@
+{
+  "items": [
+    {
+      "id": "item_ad8b58537ca0",
+      "type": "message",
+      "role": "assistant",
+      "content": [
+        "Hello, this is Sarah calling from Ali's Organization. I'm calling to collect some information for your upcoming Initial Consultation with Dr. Jane Smith on 07/25/2025 06:38 PM. Is this a good time to talk for a few minutes?\n"
+      ],
+      "interrupted": false
+    },
+    {
+      "id": "item_75df4fd210c6",
+      "type": "message",
+      "role": "user",
+      "content": [
+        "Yes. It's a good time."
+      ],
+      "interrupted": false,
+      "transcript_confidence": 0.9975586
+    },
+    {
+      "id": "item_e0c970379b12",
+      "type": "message",
+      "role": "assistant",
+      "content": [
+        "Great! Let me ask you a few questions to help prepare for your appointment.\n\nFirst, Ali Raza, what is your chief complaint today?\n"
+      ],
+      "interrupted": false
+    },
+    {
+      "id": "item_f748975c0897",
+      "type": "message",
+      "role": "user",
+      "content": [
+        "I have"
+      ],
+      "interrupted": false,
+      "transcript_confidence": 0.99902344
+    },
+    {
+      "id": "item_82553bfda472",
+      "type": "message",
+      "role": "user",
+      "content": [
+        "a severe head to the right side of my head."
+      ],
+      "interrupted": false,
+      "transcript_confidence": 0.9506836
+    },
+    {
+      "id": "item_d9db54fcdeb4",
+      "type": "message",
+      "role": "assistant",
+      "content": [
+        "Okay, I understand you're experiencing a severe headache"
+      ],
+      "interrupted": true
+    }
+  ]
+}

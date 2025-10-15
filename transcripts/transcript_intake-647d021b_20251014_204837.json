@@ -1,0 +1,51 @@
+{
+  "items": [
+    {
+      "id": "item_46f0be6109c3",
+      "type": "message",
+      "role": "assistant",
+      "content": [
+        "Hello, this is Sarah calling from Ali's Organization. I'm calling to collect some information for your upcoming Initial Consultation with Dr. Jane Smith on 07/25/2025 06:38 PM. Is this a good time to talk for a few minutes?\n"
+      ],
+      "interrupted": false
+    },
+    {
+      "id": "item_fe8938fac0ce",
+      "type": "message",
+      "role": "user",
+      "content": [
+        "Yes. It's a good time."
+      ],
+      "interrupted": false,
+      "transcript_confidence": 0.99902344
+    },
+    {
+      "id": "item_d072913f49e1",
+      "type": "message",
+      "role": "assistant",
+      "content": [
+        "Great! Let me ask you a few questions to help prepare for your appointment.\n\nFirst, Ali Raza, what is your chief complaint today?\n"
+      ],
+      "interrupted": false
+    },
+    {
+      "id": "item_1fdb15eb09a0",
+      "type": "message",
+      "role": "user",
+      "content": [
+        "I have, you know, a back issue since attending."
+      ],
+      "interrupted": false,
+      "transcript_confidence": 0.9111328
+    },
+    {
+      "id": "item_4548ad08db65",
+      "type": "message",
+      "role": "assistant",
+      "content": [
+        "Okay, I understand you're experiencing a back issue. Could you please elaborate on what kind of back issue you're having?\n"
+      ],
+      "interrupted": false
+    }
+  ]
+}

@@ -1,0 +1,42 @@
+{
+  "items": [
+    {
+      "id": "item_5565ca50d09e",
+      "type": "message",
+      "role": "assistant",
+      "content": [
+        "Hello, this is Sarah calling from Ali's Organization. I'm"
+      ],
+      "interrupted": true
+    },
+    {
+      "id": "item_6b0349c59ab0",
+      "type": "message",
+      "role": "user",
+      "content": [
+        "Subscriber call is not available."
+      ],
+      "interrupted": false,
+      "transcript_confidence": 0.9614258
+    },
+    {
+      "id": "item_20a27d0c2c0e",
+      "type": "message",
+      "role": "user",
+      "content": [
+        "Please leave a message after the tone."
+      ],
+      "interrupted": false,
+      "transcript_confidence": 1.0
+    },
+    {
+      "id": "item_11dc37d89b29",
+      "type": "message",
+      "role": "assistant",
+      "content": [
+        "Hello, this is Sarah calling from Ali's Organization. I'm calling for Ali Raza to collect some information for their upcoming Initial Consultation with Dr. Jane Smith on 07/25/2025 at 06:38 PM. Since I was unable to reach them, I will try again later. Thank you.\n"
+      ],
+      "interrupted": false
+    }
+  ]
+}
