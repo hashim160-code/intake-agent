@@ -78,7 +78,6 @@ async def make_call(phone_number: str, template_id: str, organization_id: str,
 async def main():
     # Appointment details (only appointment-specific data, no template/patient/org data) will discuss this whether it is required to go to agent or not with Ansaar bhaii
     appointment_details = {
-        "appointment_id": "appt_123456789",
         "appointment_date": "07/25/2025",
         "appointment_time": "06:38 PM",
         "appointment_datetime": "07/25/2025 06:38 PM",
@@ -94,7 +93,7 @@ async def main():
     
     # Test data
     phone_number = "+12146996918"
-    template_id = "bd9a2e9e-cdab-44d6-9882-58fc75ea9cda"
+    template_id = "8e86ef66-465f-4a5c-8ad4-ed6fca5c493e"
     organization_id = "7172216f-0703-4ea8-9c64-39c5d121e0a8"
     patient_id = "691ca428-4adb-44f8-a66d-aef89027abf0"
     
@@ -102,3 +101,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+    

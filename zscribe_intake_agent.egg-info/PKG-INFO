@@ -17,3 +17,5 @@ Requires-Dist: fastapi>=0.104.0
 Requires-Dist: uvicorn>=0.24.0
 Requires-Dist: supabase>=2.0.0
 Requires-Dist: httpx>=0.25.0
+Requires-Dist: langchain-google-genai
+Requires-Dist: protobuf>=6.31.0

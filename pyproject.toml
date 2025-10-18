@@ -25,6 +25,8 @@ dependencies = [
     "uvicorn>=0.24.0",
     "supabase>=2.0.0",
     "httpx>=0.25.0",
+    "langchain-google-genai",
+    "protobuf>=6.31.0",
 ]
 
 [project.scripts]

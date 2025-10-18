@@ -1,0 +1,159 @@
+{
+  "items": [
+    {
+      "id": "item_fe017cad0990",
+      "type": "message",
+      "role": "user",
+      "content": [
+        "Hey."
+      ],
+      "interrupted": false,
+      "transcript_confidence": 0.6834717
+    },
+    {
+      "id": "item_9700f0e89bc7",
+      "type": "message",
+      "role": "user",
+      "content": [
+        "Hello?"
+      ],
+      "interrupted": false,
+      "transcript_confidence": 0.74316406
+    },
+    {
+      "id": "item_3aa3e0e31fc8",
+      "type": "message",
+      "role": "user",
+      "content": [
+        "Hello?"
+      ],
+      "interrupted": false,
+      "transcript_confidence": 0.96850586
+    },
+    {
+      "id": "item_5eec94253ae6",
+      "type": "message",
+      "role": "user",
+      "content": [
+        "Hi. How is it going?"
+      ],
+      "interrupted": false,
+      "transcript_confidence": 0.9951172
+    },
+    {
+      "id": "item_8d1866001953",
+      "type": "message",
+      "role": "assistant",
+      "content": [
+        "Hello, this is Sarah calling from Ali's Organization. I'm calling to collect some information for your upcoming Initial Consultation with Dr. Jane Smith on 07/25/2025 at 06:38 PM. Is this a good time to talk for a few minutes?\n"
+      ],
+      "interrupted": false
+    },
+    {
+      "id": "item_728d382778b7",
+      "type": "message",
+      "role": "user",
+      "content": [
+        "Yes. It is."
+      ],
+      "interrupted": false,
+      "transcript_confidence": 0.99609375
+    },
+    {
+      "id": "item_eb3e627453cd",
+      "type": "message",
+      "role": "assistant",
+      "content": [
+        "Great! Let me ask you a few questions to help prepare for your appointment.\n\nFirst, Ali Raza, can you tell me what brought you in today?\n"
+      ],
+      "interrupted": false
+    },
+    {
+      "id": "item_eb0708d897b1",
+      "type": "message",
+      "role": "user",
+      "content": [
+        "I am feeling"
+      ],
+      "interrupted": false,
+      "transcript_confidence": 0.9951172
+    },
+    {
+      "id": "item_21dd1c637564",
+      "type": "message",
+      "role": "user",
+      "content": [
+        "sick. I have stomach ache."
+      ],
+      "interrupted": false,
+      "transcript_confidence": 0.9980469
+    },
+    {
+      "id": "item_75083c5efbdc",
+      "type": "message",
+      "role": "assistant",
+      "content": [
+        "I understand you're feeling sick and have a stomach ache. Thanks for sharing that, Ali Raza.\n\nHow would you describe your main symptom, and when did it start?\n"
+      ],
+      "interrupted": false
+    },
+    {
+      "id": "item_4857aafe8b8f",
+      "type": "message",
+      "role": "user",
+      "content": [
+        "It's actually dull and sharp pain. It started two days ago."
+      ],
+      "interrupted": false,
+      "transcript_confidence": 0.9633789
+    },
+    {
+      "id": "item_0ad07b87bc8f",
+      "type": "message",
+      "role": "assistant",
+      "content": [
+        "Okay, so it's a mix of dull and sharp pain that started two days ago. Thank you for clarifying, Ali Raza.\n\nWalk me through how this problem has changed since it began. What makes it better or worse?\n"
+      ],
+      "interrupted": false
+    },
+    {
+      "id": "item_7784ae009631",
+      "type": "message",
+      "role": "user",
+      "content": [
+        "It it hasn't changed. Really. But I am see I'm feeling like it's worse"
+      ],
+      "interrupted": false,
+      "transcript_confidence": 0.90246583
+    },
+    {
+      "id": "item_474419356b73",
+      "type": "message",
+      "role": "user",
+      "content": [
+        "at the night time, and I'm feeling relatively well or better at the daytime."
+      ],
+      "interrupted": false,
+      "transcript_confidence": 0.9970703
+    },
+    {
+      "id": "item_cd719368c585",
+      "type": "message",
+      "role": "assistant",
+      "content": [
+        "Okay, Ali Raza, so the pain hasn't changed in nature, but it feels worse at night and better during the day. Thanks for letting me know.\n\nIs there anything else you think I should know that we haven’t covered yet?\n"
+      ],
+      "interrupted": true
+    },
+    {
+      "id": "item_f64deba64ce3",
+      "type": "message",
+      "role": "user",
+      "content": [
+        "Yeah."
+      ],
+      "interrupted": false,
+      "transcript_confidence": 0.9248047
+    }
+  ]
+}
