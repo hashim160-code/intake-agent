@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 from livekit.agents import JobContext, WorkerOptions, cli
 from livekit.agents.voice import Agent
 from livekit.agents import AgentSession, inference
-from livekit.plugins import silero, deepgram, google
+from livekit.plugins import silero, deepgram, baseten
 from src.prompts import generate_instructions_from_api, get_fallback_instructions
 from datetime import datetime
 import json
@@ -49,7 +49,14 @@ class IntakeAgent(Agent):
                 punctuate=True,
                 smart_format=True
             ),
-            llm=google.LLM(model="gemini-2.0-flash",),    # Google Gemini
+            llm=inference.LLM(
+                model="moonshotai/kimi-k2-instruct",
+                provider="baseten",
+                extra_kwargs={
+                    "max_completion_tokens": 1000,
+                    "temperature": 0.7,  # Adjust for natural conversation
+                },
+            ),
             tts=deepgram.TTS(model="aura-asteria-en"),   # Deepgram TTS
             vad=_vad_model
         )

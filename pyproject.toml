@@ -27,6 +27,7 @@ dependencies = [
     "httpx>=0.25.0",
     "langchain-google-genai",
     "protobuf>=6.31.0",
+    "livekit-agents[baseten]~=1.2",
 ]
 
 [project.scripts]
