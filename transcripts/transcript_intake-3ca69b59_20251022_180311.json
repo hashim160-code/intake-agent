@@ -1,0 +1,80 @@
+{
+  "items": [
+    {
+      "id": "item_a9518b44924d",
+      "type": "message",
+      "role": "assistant",
+      "content": [
+        "Hello, this is Sarah calling from Ali's Organization. I'm calling to collect some information for your upcoming Initial Consultation with Dr. Jane Smith on 07/25/2025 at 6:38 PM. Is this a good time to talk for a few minutes?"
+      ],
+      "interrupted": false
+    },
+    {
+      "id": "item_1191d3a909e8",
+      "type": "message",
+      "role": "user",
+      "content": [
+        "Yes. It's a good time. Let's start."
+      ],
+      "interrupted": false,
+      "transcript_confidence": 0.98950195
+    },
+    {
+      "id": "item_412bc9a36bf0",
+      "type": "message",
+      "role": "assistant",
+      "content": [
+        "Great! Let me ask you a few questions to help prepare for your appointment. \n\nFirst, can you tell me what brought you in today, Ali Raza?"
+      ],
+      "interrupted": false
+    },
+    {
+      "id": "item_93f1dcdf0625",
+      "type": "message",
+      "role": "user",
+      "content": [
+        "It's like having a big pen"
+      ],
+      "interrupted": false,
+      "transcript_confidence": 0.7705078
+    },
+    {
+      "id": "item_560a37b76323",
+      "type": "message",
+      "role": "user",
+      "content": [
+        "and a lure"
+      ],
+      "interrupted": false,
+      "transcript_confidence": 0.7910156
+    },
+    {
+      "id": "item_04f5f6d3d56e",
+      "type": "message",
+      "role": "assistant",
+      "content": [
+        "I’m sorry—I didn’t quite catch that. Could you tell me a little more about the main problem or symptom that’s prompting you to see Dr. Smith?"
+      ],
+      "interrupted": false
+    },
+    {
+      "id": "item_8aad7da54379",
+      "type": "message",
+      "role": "user",
+      "content": [
+        "It's like I am having a lower back pain."
+      ],
+      "interrupted": false,
+      "transcript_confidence": 0.93066406
+    },
+    {
+      "id": "item_0d310abc3030",
+      "type": "message",
+      "role": "assistant",
+      "content": [
+        "I’m sorry to hear that, Ali Raza. Let’s dig a little deeper: how would you describe the pain—sharp, dull, aching, or something else—and when did you first notice it starting?"
+      ],
+      "interrupted": false
+    }
+  ]
+}
