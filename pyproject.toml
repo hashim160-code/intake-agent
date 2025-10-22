@@ -25,9 +25,11 @@ dependencies = [
     "uvicorn>=0.24.0",
     "supabase>=2.0.0",
     "httpx>=0.25.0",
+    "langchain>=0.2.0",
     "langchain-google-genai",
     "protobuf>=6.31.0",
     "livekit-agents[baseten]~=1.2",
+    "langfuse",
 ]
 
 [project.scripts]

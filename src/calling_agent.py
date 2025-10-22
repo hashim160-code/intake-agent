@@ -14,7 +14,14 @@ from src.prompts import generate_instructions_from_api, get_fallback_instruction
 from datetime import datetime
 import json
 from livekit import api
+from langfuse import Langfuse
+
 load_dotenv()
+langfuse = Langfuse(
+    secret_key=os.getenv("LANGFUSE_SECRET_KEY"),
+    public_key=os.getenv("LANGFUSE_PUBLIC_KEY"),
+    host=os.getenv("LANGFUSE_HOST", "https://cloud.langfuse.com")
+)
 
 logger = logging.getLogger("calling-agent")
 logger.setLevel(logging.INFO)
@@ -90,9 +97,21 @@ class IntakeAgent(Agent):
             logger.error("Using fallback instructions instead")
 
         self.session.generate_reply()
-        async def on_user_turn_completed(self, turn_ctx, new_message):
-            """Log each user message"""
-            logger.info(f"User: {new_message.text_content()}")
+
+    async def on_user_turn_completed(self, turn_ctx, new_message):
+        """Log each user message"""
+        message_text = getattr(new_message, "text_content", None)
+        if callable(message_text):
+            message_text = message_text()
+        elif message_text is None:
+            message_text = getattr(new_message, "text", None)
+            if callable(message_text):
+                message_text = message_text()
+
+        if message_text is None:
+            message_text = str(new_message)
+
+        logger.info("User: %s", message_text)
 
 
 async def entrypoint(ctx: JobContext):
@@ -161,7 +180,37 @@ async def entrypoint(ctx: JobContext):
         organization_id,
         patient_id,
     )
-    
+
+    # Start Langfuse span and set initial trace attributes
+    span = langfuse.start_span(name="intake-call")
+
+    # Set input data - the parameters that initiated this call
+    call_input = {
+        "organization_id": organization_id,
+        "template_id": template_id,
+        "patient_id": patient_id,
+        "appointment_details": appointment_details,
+        "job_id": ctx.job.id,
+        "room_name": ctx.room.name
+    }
+
+    span.update_trace(
+        user_id=patient_id,
+        session_id=ctx.room.name,
+        input=call_input,
+        metadata={
+            "organization_id": organization_id,
+            "template_id": template_id,
+            "job_id": ctx.job.id,
+            "appointment_datetime": appointment_details.get("appointment_datetime"),
+            "provider_name": appointment_details.get("provider_name"),
+            "call_started_at": datetime.now().isoformat()
+        },
+        tags=["production", "intake-agent"]
+    )
+
+    logger.info("Langfuse trace started for call session")
+
     session = AgentSession()
     await session.start(
         agent=IntakeAgent(
@@ -172,26 +221,49 @@ async def entrypoint(ctx: JobContext):
         ),
         room=ctx.room,
     )
-    
+
     # Save transcript when session ends
     async def save_transcript():
         try:
             # Create transcripts folder if it doesn't exist
             os.makedirs("transcripts", exist_ok=True)
-            
+
             # Create filename with timestamp
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
             filename = f"transcripts/transcript_{ctx.room.name}_{timestamp}.json"
-            
-            # Save conversation history
+
+            # Get conversation history
+            transcript_data = session.history.to_dict()
+
+            # Save conversation history to file
             with open(filename, 'w', encoding='utf-8') as f:
-                json.dump(session.history.to_dict(), f, indent=2, ensure_ascii=False)
-            
-            logger.info(f"✅ Transcript saved: {filename}")
-            
+                json.dump(transcript_data, f, indent=2, ensure_ascii=False)
+
+            logger.info("Transcript saved: %s", filename)
+
+            # Update Langfuse trace with final data (v3.x API)
+            span.update_trace(
+                output=transcript_data,
+                metadata={
+                    "transcript_file": filename,
+                    "message_count": len(transcript_data.get("items", [])),
+                    "call_ended_at": datetime.now().isoformat()
+                }
+            )
+
+            logger.info("Langfuse trace updated with transcript data")
+
         except Exception as e:
-            logger.error(f"❌ Failed to save transcript: {e}", exc_info=True)
-    
+            logger.error("Failed to save transcript or update trace: %s", e, exc_info=True)
+        finally:
+            # Always close out the Langfuse span even if transcript persistence fails
+            try:
+                span.end()
+                langfuse.flush()
+                logger.info("Langfuse span closed and data flushed")
+            except Exception as span_error:
+                logger.error("Failed to close Langfuse span cleanly: %s", span_error, exc_info=True)
+
     # Register the callback to run when session ends
     ctx.add_shutdown_callback(save_transcript)
 
