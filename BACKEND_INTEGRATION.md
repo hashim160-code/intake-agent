@@ -74,6 +74,7 @@ X-Webhook-Signature: <optional_signature_for_security>
 **Request Payload:**
 ```json
 {
+  "intake_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
   "room_name": "intake-4ad8e0ec",
   "job_id": "AJ_Ba928qBb6eP9",
   "template_id": "8e86ef66-465f-4a5c-8ad4-ed6fca5c493e",
@@ -153,6 +154,7 @@ interface Transcript {
 
 ```typescript
 interface CallMetadata {
+  intake_id: string;           // REQUIRED: UUID of the intake record to update
   room_name: string;           // LiveKit room identifier
   job_id: string;              // LiveKit job identifier
   template_id: string;         // Intake template used
@@ -257,65 +259,88 @@ X-API-Key: <langgraph_api_key>  // If authentication is enabled
 
 ## Database Schema
 
-### Recommended Tables
+### Recommended Approach: Extend Existing `intakes` Table
 
-#### 1. `call_transcripts` Table
+Since the `intakes` table already represents scheduled intake appointments with `patient_id`, `organization_id`, and `intake_template_id`, we'll add columns to store the transcript and generated notes directly. This avoids table proliferation and maintains a natural 1:1 relationship.
+
+#### Migration SQL
 
 ```sql
-CREATE TABLE call_transcripts (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    room_name VARCHAR(255) NOT NULL,
-    job_id VARCHAR(255) NOT NULL UNIQUE,
-    patient_id UUID NOT NULL REFERENCES patients(id),
-    organization_id UUID NOT NULL REFERENCES organizations(id),
-    template_id UUID NOT NULL REFERENCES intake_templates(id),
+-- Add transcript and intake notes columns to existing intakes table
+ALTER TABLE public.intakes
+ADD COLUMN transcript JSONB NULL,
+ADD COLUMN intake_notes JSONB NULL;
 
-    -- Transcript data (JSONB for flexible querying)
-    transcript JSONB NOT NULL,
+-- Add status tracking for review workflow
+ALTER TABLE public.intakes
+ADD COLUMN intake_notes_status VARCHAR(50) DEFAULT 'pending';
 
-    -- Metadata
-    call_duration_seconds INTEGER,
-    appointment_datetime TIMESTAMP,
-    provider_name VARCHAR(255),
+-- Add reviewer tracking
+ALTER TABLE public.intakes
+ADD COLUMN reviewed_by UUID REFERENCES users(id) ON DELETE SET NULL,
+ADD COLUMN reviewed_at TIMESTAMP;
 
-    -- Timestamps
-    created_at TIMESTAMP DEFAULT NOW(),
-    updated_at TIMESTAMP DEFAULT NOW(),
+-- Add indexes for JSONB queries (optional, for searching within JSONB fields)
+CREATE INDEX idx_intakes_transcript_gin ON public.intakes USING gin(transcript);
+CREATE INDEX idx_intakes_intake_notes_gin ON public.intakes USING gin(intake_notes);
 
-    -- Indexes for common queries
-    INDEX idx_patient_id (patient_id),
-    INDEX idx_organization_id (organization_id),
-    INDEX idx_created_at (created_at)
+-- Add index for status filtering
+CREATE INDEX idx_intakes_notes_status ON public.intakes(intake_notes_status)
+WHERE intake_notes_status IS NOT NULL;
+
+-- Add comment for documentation
+COMMENT ON COLUMN public.intakes.transcript IS 'LiveKit conversation history in JSONB format';
+COMMENT ON COLUMN public.intakes.intake_notes IS 'AI-generated structured intake notes in JSONB format';
+COMMENT ON COLUMN public.intakes.intake_notes_status IS 'Status: pending, generated, reviewed, approved';
+```
+
+#### Updated `intakes` Table Structure
+
+```sql
+create table public.intakes (
+  id uuid not null default gen_random_uuid(),
+  organization_id uuid not null,
+  intake_title text not null,
+  patient_id uuid not null,
+  intake_template_id uuid not null,
+  intake_time timestamp without time zone not null,
+  sms_reminder boolean null default false,
+  retries integer null default 0,
+  additional_instructions_for_ai text null,
+
+  -- NEW: Transcript and intake notes columns
+  transcript JSONB NULL,                          -- LiveKit conversation JSON
+  intake_notes JSONB NULL,                        -- AI-generated structured notes
+  intake_notes_status VARCHAR(50) DEFAULT 'pending',  -- pending, generated, reviewed, approved
+  reviewed_by UUID REFERENCES users(id),          -- Who reviewed the notes
+  reviewed_at TIMESTAMP,                          -- When reviewed
+
+  -- Existing fields
+  created_at timestamp without time zone not null default now(),
+  updated_at timestamp without time zone not null default now(),
+  created_by uuid null,
+  scheduled_at timestamp with time zone null,
+  encounter_id uuid null,
+
+  -- Existing constraints (not shown for brevity)
+  constraint intakes_pkey primary key (id),
+  -- ... other constraints
 );
 ```
 
-#### 2. `intake_notes` Table
+### Why This Approach?
 
-```sql
-CREATE TABLE intake_notes (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    transcript_id UUID NOT NULL REFERENCES call_transcripts(id),
-    patient_id UUID NOT NULL REFERENCES patients(id),
-    organization_id UUID NOT NULL REFERENCES organizations(id),
+**Advantages:**
+- ✅ **Natural 1:1 Relationship:** Each intake = one scheduled call = one transcript = one set of notes
+- ✅ **Simpler Queries:** No JOINs needed to fetch intake + transcript + notes
+- ✅ **Lower Overhead:** Avoids foreign key lookups and multiple table scans
+- ✅ **Existing Infrastructure:** Leverages existing triggers, indexes, and cascade deletes
+- ✅ **JSONB Efficiency:** PostgreSQL compresses JSONB and uses TOAST storage automatically
 
-    -- Intake notes data (JSONB for structured medical data)
-    notes JSONB NOT NULL,
-
-    -- Status tracking
-    status VARCHAR(50) DEFAULT 'generated', -- generated, reviewed, approved
-    reviewed_by UUID REFERENCES users(id),
-    reviewed_at TIMESTAMP,
-
-    -- Timestamps
-    created_at TIMESTAMP DEFAULT NOW(),
-    updated_at TIMESTAMP DEFAULT NOW(),
-
-    -- Indexes
-    INDEX idx_patient_id (patient_id),
-    INDEX idx_transcript_id (transcript_id),
-    INDEX idx_status (status)
-);
-```
+**Storage Impact:**
+- Transcript: ~20-40 KB per intake (JSONB compressed)
+- Intake Notes: ~2-5 KB per intake
+- Total: ~25-45 KB per intake (negligible compared to table overhead of separate tables)
 
 ---
 
@@ -400,6 +425,7 @@ class CallMetadata(BaseModel):
 
 
 class CallEndedPayload(BaseModel):
+    intake_id: str  # REQUIRED: UUID of the intake record to update
     room_name: str
     job_id: str
     template_id: str
@@ -442,27 +468,31 @@ async def handle_call_ended(
 async def process_call_ended(data: dict):
     """
     Background task to process call completion
-    1. Save transcript to database
+    1. Update intake record with transcript
     2. Generate intake notes via LangGraph
-    3. Save intake notes to database
+    3. Update intake record with generated notes
     """
     try:
-        # Step 1: Save transcript
-        transcript_id = await save_transcript_to_db(data)
-        logger.info(f"✅ Transcript saved: {transcript_id}")
+        intake_id = data["intake_id"]
 
-        # Step 2: Generate intake notes
+        # Step 1: Update intake record with transcript
+        await update_intake_with_transcript(
+            intake_id=intake_id,
+            transcript=data["transcript"],
+            call_duration_seconds=data["metadata"]["call_duration_seconds"]
+        )
+        logger.info(f"✅ Transcript saved to intake: {intake_id}")
+
+        # Step 2: Generate intake notes via LangGraph
         intake_notes = await generate_intake_notes(data["transcript"])
-        logger.info(f"✅ Intake notes generated for transcript: {transcript_id}")
+        logger.info(f"✅ Intake notes generated for intake: {intake_id}")
 
-        # Step 3: Save intake notes
-        notes_id = await save_intake_notes_to_db(
-            transcript_id=transcript_id,
-            patient_id=data["patient_id"],
-            organization_id=data["organization_id"],
+        # Step 3: Update intake record with generated notes
+        await update_intake_with_notes(
+            intake_id=intake_id,
             notes=intake_notes
         )
-        logger.info(f"✅ Intake notes saved: {notes_id}")
+        logger.info(f"✅ Intake notes saved to intake: {intake_id}")
 
         # Optional: Trigger notifications
         # await notify_patient(data["patient_id"])
@@ -472,28 +502,38 @@ async def process_call_ended(data: dict):
         # TODO: Add to retry queue or alert system
 
 
-async def save_transcript_to_db(data: dict) -> str:
-    """Save transcript to database"""
-    # Implementation depends on your database
-    # Example with SQLAlchemy or your ORM:
+async def update_intake_with_transcript(
+    intake_id: str,
+    transcript: dict,
+    call_duration_seconds: int
+) -> None:
+    """Update existing intake record with transcript data"""
+    # Example with Supabase:
+    from supabase import create_client
 
-    transcript_record = {
-        "room_name": data["room_name"],
-        "job_id": data["job_id"],
-        "patient_id": data["patient_id"],
-        "organization_id": data["organization_id"],
-        "template_id": data["template_id"],
-        "transcript": data["transcript"],
-        "call_duration_seconds": data["metadata"]["call_duration_seconds"],
-        "appointment_datetime": data["appointment_details"]["appointment_datetime"],
-        "provider_name": data["appointment_details"]["provider_name"]
-    }
+    supabase = create_client(
+        os.getenv("SUPABASE_URL"),
+        os.getenv("SUPABASE_KEY")
+    )
 
-    # Insert into database
-    # result = await db.call_transcripts.insert(transcript_record)
-    # return result.id
+    response = await supabase.table("intakes").update({
+        "transcript": transcript,
+        "intake_notes_status": "generating",  # Mark as processing
+        "updated_at": datetime.now().isoformat()
+    }).eq("id", intake_id).execute()
 
-    return "transcript_uuid_here"  # Replace with actual implementation
+    if not response.data:
+        raise Exception(f"Failed to update intake {intake_id} with transcript")
+
+    # Alternative with PostgreSQL directly:
+    # await db.execute(
+    #     """
+    #     UPDATE intakes
+    #     SET transcript = $1, intake_notes_status = 'generating', updated_at = NOW()
+    #     WHERE id = $2
+    #     """,
+    #     json.dumps(transcript), intake_id
+    # )
 
 
 async def generate_intake_notes(transcript: dict) -> dict:
@@ -519,26 +559,37 @@ async def generate_intake_notes(transcript: dict) -> dict:
         return result["output"]["intake_notes"]
 
 
-async def save_intake_notes_to_db(
-    transcript_id: str,
-    patient_id: str,
-    organization_id: str,
+async def update_intake_with_notes(
+    intake_id: str,
     notes: dict
-) -> str:
-    """Save intake notes to database"""
-    notes_record = {
-        "transcript_id": transcript_id,
-        "patient_id": patient_id,
-        "organization_id": organization_id,
-        "notes": notes,
-        "status": "generated"
-    }
+) -> None:
+    """Update existing intake record with generated intake notes"""
+    # Example with Supabase:
+    from supabase import create_client
 
-    # Insert into database
-    # result = await db.intake_notes.insert(notes_record)
-    # return result.id
+    supabase = create_client(
+        os.getenv("SUPABASE_URL"),
+        os.getenv("SUPABASE_KEY")
+    )
 
-    return "notes_uuid_here"  # Replace with actual implementation
+    response = await supabase.table("intakes").update({
+        "intake_notes": notes,
+        "intake_notes_status": "generated",  # Mark as completed
+        "updated_at": datetime.now().isoformat()
+    }).eq("id", intake_id).execute()
+
+    if not response.data:
+        raise Exception(f"Failed to update intake {intake_id} with notes")
+
+    # Alternative with PostgreSQL directly:
+    # await db.execute(
+    #     """
+    #     UPDATE intakes
+    #     SET intake_notes = $1, intake_notes_status = 'generated', updated_at = NOW()
+    #     WHERE id = $2
+    #     """,
+    #     json.dumps(notes), intake_id
+    # )
 ```
 
 ---
@@ -647,6 +698,7 @@ Use this sample payload for testing:
 
 ```json
 {
+  "intake_id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
   "room_name": "test-room-123",
   "job_id": "test-job-456",
   "template_id": "8e86ef66-465f-4a5c-8ad4-ed6fca5c493e",
@@ -770,33 +822,57 @@ For questions or issues:
 ## Appendix: Full Example Flow
 
 ```
-1. Patient calls intake number
+1. Backend creates intake record in `intakes` table:
+   - intake_id = "3fa85f64-..."
+   - patient_id, organization_id, intake_template_id
+   - scheduled_at, intake_time
+   - transcript = NULL, intake_notes = NULL, intake_notes_status = 'pending'
    ↓
-2. LiveKit routes to agent
+2. Backend calls make_call() with intake_id in metadata
    ↓
-3. Agent conducts intake interview
+3. LiveKit agent receives call with intake_id in metadata
    ↓
-4. Call ends, agent sends webhook:
+4. Agent conducts intake interview with patient
+   ↓
+5. Call ends, agent sends webhook:
    POST /api/webhooks/call-ended
    {
-     "room_name": "intake-4ad8e0ec",
+     "intake_id": "3fa85f64-...",  // ← CRITICAL: Used to UPDATE existing record
      "transcript": {...},
      ...
    }
    ↓
-5. Backend receives webhook (returns 200 OK immediately)
+6. Backend receives webhook (returns 200 OK immediately)
    ↓
-6. Background task starts:
-   a. Save transcript to call_transcripts table
+7. Background task starts:
+   a. UPDATE intakes SET transcript = {...}, intake_notes_status = 'generating'
    b. Call LangGraph API with transcript
    c. Receive intake notes JSON
-   d. Save to intake_notes table
+   d. UPDATE intakes SET intake_notes = {...}, intake_notes_status = 'generated'
    ↓
-7. UI updates showing:
-   - Call transcript available
-   - Intake notes generated (pending review)
+8. UI queries intakes table:
+   - Shows transcript (intake.transcript)
+   - Shows intake notes (intake.intake_notes)
+   - Shows status (intake.intake_notes_status = 'generated')
    ↓
-8. Doctor reviews and approves intake notes
+9. Doctor reviews and approves:
+   - UPDATE intakes SET intake_notes_status = 'approved', reviewed_by = doctor_id
+```
+
+### Critical Requirements for Agent Code
+
+**The agent MUST receive `intake_id` in metadata and send it back in the webhook!**
+
+Update `src/make_call.py` to include `intake_id`:
+```python
+metadata = json.dumps({
+    "intake_id": intake_id,  # ← ADD THIS
+    "template_id": template_id,
+    "organization_id": organization_id,
+    "patient_id": patient_id,
+    "appointment_details": appointment_details,
+    "phone_number": phone_number
+})
 ```
 
 ---
