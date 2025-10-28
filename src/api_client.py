@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-API_BASE_URL = "http://localhost:3000"
+API_BASE_URL = "http://localhost:4000"
 
 async def fetch_template_from_api(template_id: str) -> Optional[Dict]:
     """
@@ -105,4 +105,43 @@ async def test_api_connection() -> bool:
             response = await client.get(f"{API_BASE_URL}/health")
             return response.status_code == 200
     except:
+        return False
+
+
+# for storing the transcript in db
+async def save_transcript_to_db(intake_id: str, transcript_data: dict) -> bool:
+    """
+    Save transcript directly to Supabase database
+
+    Args:
+        intake_id: UUID of the intake record
+        transcript_data: Transcript JSON (from session.history.to_dict())
+
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    try:
+        from supabase import create_client
+
+        # Create Supabase client
+        supabase = create_client(
+            os.getenv("SUPABASE_URL"),
+            os.getenv("SUPABASE_KEY")
+        )
+
+        # Update the intakes table with transcript data
+        response = supabase.table("intakes").update({
+            "transcription": transcript_data
+        }).eq("id", intake_id).execute()
+
+        # Check if successful
+        if response.data:
+            print(f"✅ Transcript saved to database for intake {intake_id}")
+            return True
+        else:
+            print(f"❌ Failed to save transcript - no data returned")
+            return False
+
+    except Exception as e:
+        print(f"❌ Error saving transcript to database: {e}")
         return False

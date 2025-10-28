@@ -18,7 +18,7 @@ room_name = "my-room"
 outbound_trunk_id = os.getenv("SIP_OUTBOUND_TRUNK_ID")
 
 async def make_call(phone_number: str, template_id: str, organization_id: str, 
-                   patient_id: str, appointment_details: dict):
+                   patient_id: str, appointment_details: dict, intake_id: str):
     """Create a dispatch and add a SIP participant to call the phone number"""
     lkapi = api.LiveKitAPI()
     
@@ -32,12 +32,13 @@ async def make_call(phone_number: str, template_id: str, organization_id: str,
     
     # Store data in metadata
     metadata = json.dumps({
-        "template_id": template_id,
-        "organization_id": organization_id,
-        "patient_id": patient_id,
-        "appointment_details": appointment_details,
-        "phone_number": phone_number
-    })
+    "intake_id": intake_id,
+    "template_id": template_id,
+    "organization_id": organization_id,
+    "patient_id": patient_id,
+    "appointment_details": appointment_details,
+    "phone_number": phone_number
+})
     
     logger.info(f"Creating dispatch with metadata: {metadata}")
     
@@ -92,13 +93,12 @@ async def main():
     }
     
     # Test data
-    phone_number = "+12146996918"
+    phone_number = "+12023184935"
     template_id = "8e86ef66-465f-4a5c-8ad4-ed6fca5c493e"
     organization_id = "7172216f-0703-4ea8-9c64-39c5d121e0a8"
     patient_id = "691ca428-4adb-44f8-a66d-aef89027abf0"
-    
-    await make_call(phone_number, template_id, organization_id, patient_id, appointment_details)
+    intake_id = "77dbb31b-4d11-45b9-b6ad-4af89b797baf"  
+    await make_call(phone_number, template_id, organization_id, patient_id, appointment_details, intake_id)
 
 if __name__ == "__main__":
     asyncio.run(main())
-    

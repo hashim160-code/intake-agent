@@ -98,4 +98,4 @@ async def get_organization(organization_id: str):
         return {"success": False, "message": f"Error: {str(e)}"}
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=3000)
+    uvicorn.run(app, host="0.0.0.0", port=4000)

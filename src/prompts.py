@@ -4,6 +4,7 @@ Template-based prompt generation for intake agent
 
 import os
 import logging
+from typing import Optional
 from langfuse import Langfuse
 from api_client import fetch_template_from_api, fetch_patient_from_api, fetch_organization_from_api
 
@@ -16,9 +17,24 @@ langfuse_client = Langfuse(
     host=os.getenv("LANGFUSE_HOST", "https://cloud.langfuse.com")
 )
 
-async def generate_instructions_from_api(template_id: str, organization_id: str = None,
-                                      patient_id: str = None, appointment_details: dict = None) -> str:
+async def generate_instructions_from_api(
+    template_id: str,
+    organization_id: str | None = None,
+    patient_id: str | None = None,
+    appointment_details: dict | None = None,
+    prefilled_greeting: Optional[str] = None,
+) -> str:
     """Generate complete instructions from Langfuse prompt template with API data"""
+
+    def append_greeting_note(text: str) -> str:
+        if not prefilled_greeting:
+            return text
+        return (
+            f"{text}\n\nNOTE: The assistant has already greeted the patient by saying "
+            f"\"{prefilled_greeting}\" and the patient confirmed it was a good time to talk. "
+            "Do NOT repeat the introduction or ask for permission again. "
+            "Continue directly with the information collection steps."
+        )
 
     # Fetch all data in parallel
     template_data = await fetch_template_from_api(template_id)
@@ -27,7 +43,7 @@ async def generate_instructions_from_api(template_id: str, organization_id: str 
 
     if not template_data:
         logger.warning("Template data not available, using fallback instructions")
-        return get_fallback_instructions()
+        return append_greeting_note(get_fallback_instructions())
 
     # Extract the data
     template_name = template_data.get('template_name', 'Intake Form')
@@ -65,11 +81,11 @@ async def generate_instructions_from_api(template_id: str, organization_id: str 
         )
 
         logger.info("Successfully fetched and compiled prompt from Langfuse")
-        return instructions
+        return append_greeting_note(instructions)
 
     except Exception as e:
         logger.error(f"Failed to fetch prompt from Langfuse: {e}, using fallback")
-        return get_fallback_instructions()
+        return append_greeting_note(get_fallback_instructions())
 
 def get_fallback_instructions() -> str:
     """Get fallback instructions when Langfuse or API is not available"""

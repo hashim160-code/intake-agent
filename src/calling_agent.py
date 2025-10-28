@@ -5,6 +5,7 @@ ZScribe Intake Agent - AI-powered medical intake calls
 import logging
 import os
 import json
+import random
 from dotenv import load_dotenv
 from livekit.agents import JobContext, WorkerOptions, cli
 from livekit.agents.voice import Agent
@@ -15,6 +16,7 @@ from datetime import datetime
 import json
 from livekit import api
 from langfuse import Langfuse
+from src.api_client import save_transcript_to_db
 
 load_dotenv()
 langfuse = Langfuse(
@@ -22,6 +24,20 @@ langfuse = Langfuse(
     public_key=os.getenv("LANGFUSE_PUBLIC_KEY"),
     host=os.getenv("LANGFUSE_HOST", "https://cloud.langfuse.com")
 )
+
+AGENT_NAME = os.getenv("INTAKE_AGENT_NAME", "ZScribe Intake Assistant")
+DEFAULT_PATIENT_NAME = "there"
+DEFAULT_ORGANIZATION_NAME = os.getenv("INTAKE_ORGANIZATION_NAME", "ZScribe")
+GREETING_VARIATIONS = [
+    "Hi {patient}, this is {agent} from {organization}. Is now a good time to talk for a few minutes?",
+    "Hello {patient}! {agent} calling on behalf of {organization}. Do you have a moment for your upcoming appointment?",
+    "Good day {patient}, you're speaking with {agent} at {organization}. May I confirm it's a good time to continue?",
+    "Hi there {patient}, {agent} with {organization} here - can we chat for a few minutes about your visit?",
+    "Hello {patient}, this is {agent} with {organization}. Is this still a convenient time to go over your intake?",
+    "Hi {patient}! {agent} from {organization}. Do you have a moment so we can prepare for your appointment?",
+    "Good day {patient}, {agent} here representing {organization}. Is it okay if we review a few details now?",
+    "Hello {patient}! You're speaking with {agent} from {organization}. Is this a good time to proceed with intake questions?",
+]
 
 logger = logging.getLogger("calling-agent")
 logger.setLevel(logging.INFO)
@@ -50,12 +66,7 @@ class IntakeAgent(Agent):
         
         super().__init__(
             instructions=instructions,
-            stt=deepgram.STT(
-                interim_results=True,
-                endpointing_ms=500,          # KEY: Wait 500ms before finalizing transcript
-                punctuate=True,
-                smart_format=True
-            ),
+            stt=deepgram.STT(model="nova-3", language="en-US", smart_format=True),
             llm=inference.LLM(
                 model="moonshotai/kimi-k2-instruct",
                 provider="baseten",
@@ -64,12 +75,27 @@ class IntakeAgent(Agent):
                     "temperature": 0.7,  # Adjust for natural conversation
                 },
             ),
-            tts=deepgram.TTS(model="aura-asteria-en"),   # Deepgram TTS
+            tts=deepgram.TTS(model="aura-2-andromeda-en", mip_opt_out=True),
             vad=_vad_model
         )
 
     async def on_enter(self):
         """Called when agent enters the room"""
+        patient_name = (
+            self.appointment_details.get("patient_name")
+            or self.appointment_details.get("patient_first_name")
+            or self.appointment_details.get("patient_full_name")
+            or DEFAULT_PATIENT_NAME
+        )
+        organization_name = (
+            self.appointment_details.get("organization_name")
+            or DEFAULT_ORGANIZATION_NAME
+        )
+        greeting_template = random.choice(GREETING_VARIATIONS)
+        greeting = greeting_template.format(
+            agent=AGENT_NAME, patient=patient_name, organization=organization_name
+        )
+
         try:
             logger.info("Loading data for template %s", self.template_id)
             logger.info("Organization ID: %s", self.organization_id)
@@ -84,6 +110,7 @@ class IntakeAgent(Agent):
                 organization_id=self.organization_id,
                 patient_id=self.patient_id,
                 appointment_details=self.appointment_details,
+                prefilled_greeting=greeting,
             )
 
             if instructions:
@@ -95,8 +122,11 @@ class IntakeAgent(Agent):
         except Exception as e:
             logger.error("Failed to load dynamic instructions: %s", e, exc_info=True)
             logger.error("Using fallback instructions instead")
-
-        self.session.generate_reply()
+        self.session.say(
+            greeting,
+            allow_interruptions=True,
+            add_to_chat_ctx=True,
+        )
 
     async def on_user_turn_completed(self, turn_ctx, new_message):
         """Log each user message"""
@@ -131,6 +161,7 @@ async def entrypoint(ctx: JobContext):
         "appointment_datetime": "07/25/2025 06:38 PM",
         "provider_name": "Dr. Jane Smith",
     }
+    intake_id = None
 
     logger.info("Job ID: %s", ctx.job.id)
     logger.info("Job room name: %s", ctx.job.room.name)
@@ -167,6 +198,7 @@ async def entrypoint(ctx: JobContext):
         template_id = parsed_metadata.get("template_id", template_id)
         organization_id = parsed_metadata.get("organization_id", organization_id)
         patient_id = parsed_metadata.get("patient_id", patient_id)
+        intake_id = parsed_metadata.get("intake_id")  
 
         incoming_details = parsed_metadata.get("appointment_details")
         if isinstance(incoming_details, dict):
@@ -241,13 +273,48 @@ async def entrypoint(ctx: JobContext):
 
             logger.info("Transcript saved: %s", filename)
 
+            # Save to database via API
+            if intake_id:
+                try:
+                    success = await save_transcript_to_db(intake_id, transcript_data)
+                    if success:
+                        logger.info("✅ Transcript saved to database for intake: %s", intake_id)
+                    else:
+                        logger.error("❌ Failed to save transcript to database for intake: %s", intake_id)
+                except Exception as api_error:
+                    logger.error("❌ Error calling transcript API: %s", api_error, exc_info=True)
+            else:
+                logger.warning("⚠️ No intake_id found in metadata, skipping database save")
+                
+            # Build a flattened transcript string for evaluations/quality checks
+            transcript_items = transcript_data.get("items", [])
+            plain_transcript_segments = []
+
+            for item in transcript_items:
+                role = (item.get("role") or "unknown").capitalize()
+                content = item.get("content") or []
+
+                if isinstance(content, str):
+                    text = content
+                elif isinstance(content, list):
+                    # Join list entries (they are typically strings)
+                    text = " ".join(str(part) for part in content if part)
+                else:
+                    text = ""
+
+                if text:
+                    plain_transcript_segments.append(f"{role}: {text.strip()}")
+
+            transcript_text = "\n".join(plain_transcript_segments)
+
             # Update Langfuse trace with final data (v3.x API)
             span.update_trace(
                 output=transcript_data,
                 metadata={
                     "transcript_file": filename,
                     "message_count": len(transcript_data.get("items", [])),
-                    "call_ended_at": datetime.now().isoformat()
+                    "call_ended_at": datetime.now().isoformat(),
+                    "transcript_text": transcript_text,
                 }
             )
 
