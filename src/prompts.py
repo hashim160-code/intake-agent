@@ -31,9 +31,9 @@ async def generate_instructions_from_api(
             return text
         return (
             f"{text}\n\nNOTE: The assistant has already greeted the patient by saying "
-            f"\"{prefilled_greeting}\" and the patient confirmed it was a good time to talk. "
-            "Do NOT repeat the introduction or ask for permission again. "
-            "Continue directly with the information collection steps."
+            f"\"{prefilled_greeting}\" and has already asked if it's a good time to talk. "
+            "Do NOT repeat the introduction or permission question unless the patient indicates they didn't hear it. "
+            "Wait for the patient's reply to that greeting before continuing with the intake flow."
         )
 
     # Fetch all data in parallel

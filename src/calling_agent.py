@@ -6,6 +6,7 @@ import logging
 import os
 import json
 import random
+from typing import Optional
 from dotenv import load_dotenv
 from livekit.agents import JobContext, WorkerOptions, cli
 from livekit.agents.voice import Agent
@@ -16,7 +17,11 @@ from datetime import datetime
 import json
 from livekit import api
 from langfuse import Langfuse
-from src.api_client import save_transcript_to_db
+from src.api_client import (
+    save_transcript_to_db,
+    fetch_patient_from_api,
+    fetch_organization_from_api,
+)
 
 load_dotenv()
 langfuse = Langfuse(
@@ -29,14 +34,10 @@ AGENT_NAME = os.getenv("INTAKE_AGENT_NAME", "ZScribe Intake Assistant")
 DEFAULT_PATIENT_NAME = "there"
 DEFAULT_ORGANIZATION_NAME = os.getenv("INTAKE_ORGANIZATION_NAME", "ZScribe")
 GREETING_VARIATIONS = [
-    "Hi {patient}, this is {agent} from {organization}. Is now a good time to talk for a few minutes?",
-    "Hello {patient}! {agent} calling on behalf of {organization}. Do you have a moment for your upcoming appointment?",
-    "Good day {patient}, you're speaking with {agent} at {organization}. May I confirm it's a good time to continue?",
-    "Hi there {patient}, {agent} with {organization} here - can we chat for a few minutes about your visit?",
-    "Hello {patient}, this is {agent} with {organization}. Is this still a convenient time to go over your intake?",
-    "Hi {patient}! {agent} from {organization}. Do you have a moment so we can prepare for your appointment?",
-    "Good day {patient}, {agent} here representing {organization}. Is it okay if we review a few details now?",
-    "Hello {patient}! You're speaking with {agent} from {organization}. Is this a good time to proceed with intake questions?",
+    "Hello {patient}, this is {agent} calling from {organization}. Is this a good time to talk for a few minutes?",
+    "Hi {patient}, {agent} from {organization}. Do you have a moment so we can prepare for your upcoming appointment?",
+    "Good day {patient}! You're speaking with {agent} at {organization}. May I confirm it's a convenient time to go through a few intake questions?",
+    "Hello {patient}, you're speaking with {agent} representing {organization}. Is it okay if we continue with your intake call now?",
 ]
 
 logger = logging.getLogger("calling-agent")
@@ -54,12 +55,21 @@ _vad_model = silero.VAD.load()
 # )
 
 class IntakeAgent(Agent):
-    def __init__(self, template_id: str, organization_id: str, patient_id: str, 
-                 appointment_details: dict) -> None:
+    def __init__(
+        self,
+        template_id: str,
+        organization_id: str,
+        patient_id: str,
+        appointment_details: dict,
+        patient_name: Optional[str] = None,
+        organization_name: Optional[str] = None,
+    ) -> None:
         self.template_id = template_id
         self.organization_id = organization_id
         self.patient_id = patient_id
         self.appointment_details = appointment_details
+        self.patient_name = patient_name or DEFAULT_PATIENT_NAME
+        self.organization_name = organization_name or DEFAULT_ORGANIZATION_NAME
         
         # Use fallback instructions initially
         instructions = get_fallback_instructions()
@@ -81,16 +91,8 @@ class IntakeAgent(Agent):
 
     async def on_enter(self):
         """Called when agent enters the room"""
-        patient_name = (
-            self.appointment_details.get("patient_name")
-            or self.appointment_details.get("patient_first_name")
-            or self.appointment_details.get("patient_full_name")
-            or DEFAULT_PATIENT_NAME
-        )
-        organization_name = (
-            self.appointment_details.get("organization_name")
-            or DEFAULT_ORGANIZATION_NAME
-        )
+        patient_name = self.patient_name
+        organization_name = self.organization_name
         greeting_template = random.choice(GREETING_VARIATIONS)
         greeting = greeting_template.format(
             agent=AGENT_NAME, patient=patient_name, organization=organization_name
@@ -203,8 +205,32 @@ async def entrypoint(ctx: JobContext):
         incoming_details = parsed_metadata.get("appointment_details")
         if isinstance(incoming_details, dict):
             appointment_details = incoming_details
-        elif incoming_details is not None:
-            logger.warning("Appointment details must be a dict; ignoring value")
+    elif incoming_details is not None:
+        logger.warning("Appointment details must be a dict; ignoring value")
+
+    patient_profile = None
+    organization_profile = None
+    try:
+        patient_profile = await fetch_patient_from_api(patient_id)
+    except Exception as exc:
+        logger.warning("Unable to fetch patient data: %s", exc)
+    try:
+        organization_profile = await fetch_organization_from_api(organization_id)
+    except Exception as exc:
+        logger.warning("Unable to fetch organization data: %s", exc)
+
+    patient_name = (
+        (patient_profile or {}).get("full_name")
+        or appointment_details.get("patient_name")
+        or DEFAULT_PATIENT_NAME
+    )
+    organization_name = (
+        (organization_profile or {}).get("name")
+        or appointment_details.get("organization_name")
+        or DEFAULT_ORGANIZATION_NAME
+    )
+    appointment_details.setdefault("patient_name", patient_name)
+    appointment_details.setdefault("organization_name", organization_name)
 
     logger.info(
         "Using - Template: %s, Org: %s, Patient: %s",
@@ -250,6 +276,8 @@ async def entrypoint(ctx: JobContext):
             organization_id=organization_id,
             patient_id=patient_id,
             appointment_details=appointment_details,
+            patient_name=patient_name,
+            organization_name=organization_name,
         ),
         room=ctx.room,
     )

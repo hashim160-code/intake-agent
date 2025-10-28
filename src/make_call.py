@@ -95,9 +95,9 @@ async def main():
     # Test data
     phone_number = "+12023184935"
     template_id = "8e86ef66-465f-4a5c-8ad4-ed6fca5c493e"
-    organization_id = "7172216f-0703-4ea8-9c64-39c5d121e0a8"
-    patient_id = "691ca428-4adb-44f8-a66d-aef89027abf0"
-    intake_id = "77dbb31b-4d11-45b9-b6ad-4af89b797baf"  
+    organization_id = "0da4a59a-275f-4f2d-92f0-5e0c60b0f1da"
+    patient_id = "4b3a1edb-76c5-46f4-ad0f-3c164348202b"
+    intake_id = "a8adaf8a-ed8e-48d2-9d45-8130e9c164e3"  
     await make_call(phone_number, template_id, organization_id, patient_id, appointment_details, intake_id)
 
 if __name__ == "__main__":
