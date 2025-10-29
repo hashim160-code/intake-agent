@@ -136,12 +136,12 @@ async def save_transcript_to_db(intake_id: str, transcript_data: dict) -> bool:
 
         # Check if successful
         if response.data:
-            print(f"✅ Transcript saved to database for intake {intake_id}")
+            print(f"Transcript saved to database for intake {intake_id}")
             return True
         else:
-            print(f"❌ Failed to save transcript - no data returned")
+            print(f"Failed to save transcript - no data returned")
             return False
 
     except Exception as e:
-        print(f"❌ Error saving transcript to database: {e}")
+        print(f"Error saving transcript to database: {e}")
         return False

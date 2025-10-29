@@ -5,8 +5,9 @@ ZScribe Intake Agent - AI-powered medical intake calls
 import logging
 import os
 import json
-import random
 from typing import Optional
+import random
+import asyncio
 from dotenv import load_dotenv
 from livekit.agents import JobContext, WorkerOptions, cli
 from livekit.agents.voice import Agent
@@ -14,7 +15,6 @@ from livekit.agents import AgentSession, inference
 from livekit.plugins import silero, deepgram, baseten
 from src.prompts import generate_instructions_from_api, get_fallback_instructions
 from datetime import datetime
-import json
 from livekit import api
 from langfuse import Langfuse
 from src.api_client import (
@@ -60,14 +60,12 @@ class IntakeAgent(Agent):
         template_id: str,
         organization_id: str,
         patient_id: str,
-        appointment_details: dict,
         patient_name: Optional[str] = None,
         organization_name: Optional[str] = None,
     ) -> None:
         self.template_id = template_id
         self.organization_id = organization_id
         self.patient_id = patient_id
-        self.appointment_details = appointment_details
         self.patient_name = patient_name or DEFAULT_PATIENT_NAME
         self.organization_name = organization_name or DEFAULT_ORGANIZATION_NAME
         
@@ -102,16 +100,11 @@ class IntakeAgent(Agent):
             logger.info("Loading data for template %s", self.template_id)
             logger.info("Organization ID: %s", self.organization_id)
             logger.info("Patient ID: %s", self.patient_id)
-            logger.info(
-                "Appointment: %s",
-                self.appointment_details.get("appointment_datetime", "N/A"),
-            )
 
             instructions = await generate_instructions_from_api(
                 template_id=self.template_id,
                 organization_id=self.organization_id,
                 patient_id=self.patient_id,
-                appointment_details=self.appointment_details,
                 prefilled_greeting=greeting,
             )
 
@@ -159,10 +152,6 @@ async def entrypoint(ctx: JobContext):
     patient_id = os.getenv(
         "DEFAULT_PATIENT_ID", "4b3a1edb-76c5-46f4-ad0f-3c164348202b"
     )
-    appointment_details: dict = {
-        "appointment_datetime": "07/25/2025 06:38 PM",
-        "provider_name": "Dr. Jane Smith",
-    }
     intake_id = None
 
     logger.info("Job ID: %s", ctx.job.id)
@@ -200,37 +189,44 @@ async def entrypoint(ctx: JobContext):
         template_id = parsed_metadata.get("template_id", template_id)
         organization_id = parsed_metadata.get("organization_id", organization_id)
         patient_id = parsed_metadata.get("patient_id", patient_id)
-        intake_id = parsed_metadata.get("intake_id")  
-
-        incoming_details = parsed_metadata.get("appointment_details")
-        if isinstance(incoming_details, dict):
-            appointment_details = incoming_details
-    elif incoming_details is not None:
-        logger.warning("Appointment details must be a dict; ignoring value")
+        intake_id = parsed_metadata.get("intake_id")
 
     patient_profile = None
     organization_profile = None
     try:
-        patient_profile = await fetch_patient_from_api(patient_id)
+        patient_result, organization_result = await asyncio.gather(
+            fetch_patient_from_api(patient_id),
+            fetch_organization_from_api(organization_id),
+            return_exceptions=True,
+        )
     except Exception as exc:
-        logger.warning("Unable to fetch patient data: %s", exc)
-    try:
-        organization_profile = await fetch_organization_from_api(organization_id)
-    except Exception as exc:
-        logger.warning("Unable to fetch organization data: %s", exc)
+        logger.warning("Parallel metadata fetch failed: %s", exc)
+        patient_result = organization_result = None
+
+    if isinstance(patient_result, Exception):
+        logger.warning("Unable to fetch patient data: %s", patient_result)
+        patient_profile = None
+    else:
+        patient_profile = patient_result
+
+    if isinstance(organization_result, Exception):
+        logger.warning("Unable to fetch organization data: %s", organization_result)
+        organization_profile = None
+    else:
+        organization_profile = organization_result
 
     patient_name = (
         (patient_profile or {}).get("full_name")
-        or appointment_details.get("patient_name")
         or DEFAULT_PATIENT_NAME
     )
     organization_name = (
         (organization_profile or {}).get("name")
-        or appointment_details.get("organization_name")
         or DEFAULT_ORGANIZATION_NAME
     )
-    appointment_details.setdefault("patient_name", patient_name)
-    appointment_details.setdefault("organization_name", organization_name)
+    if patient_name == DEFAULT_PATIENT_NAME:
+        logger.info("Using default patient name; dynamic profile unavailable")
+    if organization_name == DEFAULT_ORGANIZATION_NAME:
+        logger.info("Using default organization name; dynamic profile unavailable")
 
     logger.info(
         "Using - Template: %s, Org: %s, Patient: %s",
@@ -247,7 +243,8 @@ async def entrypoint(ctx: JobContext):
         "organization_id": organization_id,
         "template_id": template_id,
         "patient_id": patient_id,
-        "appointment_details": appointment_details,
+        "organization_name": organization_name,
+        "patient_name": patient_name,
         "job_id": ctx.job.id,
         "room_name": ctx.room.name
     }
@@ -260,8 +257,6 @@ async def entrypoint(ctx: JobContext):
             "organization_id": organization_id,
             "template_id": template_id,
             "job_id": ctx.job.id,
-            "appointment_datetime": appointment_details.get("appointment_datetime"),
-            "provider_name": appointment_details.get("provider_name"),
             "call_started_at": datetime.now().isoformat()
         },
         tags=["production", "intake-agent"]
@@ -275,7 +270,6 @@ async def entrypoint(ctx: JobContext):
             template_id=template_id,
             organization_id=organization_id,
             patient_id=patient_id,
-            appointment_details=appointment_details,
             patient_name=patient_name,
             organization_name=organization_name,
         ),
@@ -285,34 +279,33 @@ async def entrypoint(ctx: JobContext):
     # Save transcript when session ends
     async def save_transcript():
         try:
-            # Create transcripts folder if it doesn't exist
-            os.makedirs("transcripts", exist_ok=True)
+            # # Create transcripts folder if it doesn't exist
+            # os.makedirs("transcripts", exist_ok=True)
 
-            # Create filename with timestamp
+            # # Create filename with timestamp
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
             filename = f"transcripts/transcript_{ctx.room.name}_{timestamp}.json"
 
             # Get conversation history
             transcript_data = session.history.to_dict()
 
-            # Save conversation history to file
-            with open(filename, 'w', encoding='utf-8') as f:
-                json.dump(transcript_data, f, indent=2, ensure_ascii=False)
+            # # Save conversation history to file
+            # with open(filename, 'w', encoding='utf-8') as f:
+            #     json.dump(transcript_data, f, indent=2, ensure_ascii=False)
 
-            logger.info("Transcript saved: %s", filename)
+            # logger.info("Transcript saved: %s", filename)
 
-            # Save to database via API
             if intake_id:
                 try:
                     success = await save_transcript_to_db(intake_id, transcript_data)
                     if success:
-                        logger.info("✅ Transcript saved to database for intake: %s", intake_id)
+                        logger.info("Transcript saved to database for intake: %s", intake_id)
                     else:
-                        logger.error("❌ Failed to save transcript to database for intake: %s", intake_id)
+                        logger.error("Failed to save transcript to database for intake: %s", intake_id)
                 except Exception as api_error:
-                    logger.error("❌ Error calling transcript API: %s", api_error, exc_info=True)
+                    logger.error("Error calling transcript API: %s", api_error, exc_info=True)
             else:
-                logger.warning("⚠️ No intake_id found in metadata, skipping database save")
+                logger.warning("No intake_id found in metadata, skipping database save")
                 
             # Build a flattened transcript string for evaluations/quality checks
             transcript_items = transcript_data.get("items", [])

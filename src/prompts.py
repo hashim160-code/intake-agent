@@ -21,7 +21,6 @@ async def generate_instructions_from_api(
     template_id: str,
     organization_id: str | None = None,
     patient_id: str | None = None,
-    appointment_details: dict | None = None,
     prefilled_greeting: Optional[str] = None,
 ) -> str:
     """Generate complete instructions from Langfuse prompt template with API data"""
@@ -53,11 +52,6 @@ async def generate_instructions_from_api(
     patient_name = patient_data.get('full_name', 'the patient') if patient_data else 'the patient'
     organization_name = organization_data.get('name', 'your medical office') if organization_data else 'your medical office'
 
-    # Extract appointment details
-    appointment_datetime = appointment_details.get('appointment_datetime', 'your upcoming appointment') if appointment_details else 'your upcoming appointment'
-    provider_name = appointment_details.get('provider_name', 'your doctor') if appointment_details else 'your doctor'
-    appointment_type = appointment_details.get('appointment_type', 'appointment') if appointment_details else 'appointment'
-
     # Format questions list
     questions_list = ""
     for i, question in enumerate(questions, 1):
@@ -72,9 +66,6 @@ async def generate_instructions_from_api(
         instructions = prompt.compile(
             patient_name=patient_name,
             organization_name=organization_name,
-            appointment_type=appointment_type,
-            provider_name=provider_name,
-            appointment_datetime=appointment_datetime,
             template_name=template_name,
             instructions_for_ai=instructions_for_ai,
             questions_list=questions_list.strip()

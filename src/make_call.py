@@ -17,8 +17,8 @@ logger.setLevel(logging.INFO)
 room_name = "my-room"
 outbound_trunk_id = os.getenv("SIP_OUTBOUND_TRUNK_ID")
 
-async def make_call(phone_number: str, template_id: str, organization_id: str, 
-                   patient_id: str, appointment_details: dict, intake_id: str):
+async def make_call(phone_number: str, template_id: str, organization_id: str,
+                   patient_id: str, intake_id: str):
     """Create a dispatch and add a SIP participant to call the phone number"""
     lkapi = api.LiveKitAPI()
     
@@ -36,7 +36,6 @@ async def make_call(phone_number: str, template_id: str, organization_id: str,
     "template_id": template_id,
     "organization_id": organization_id,
     "patient_id": patient_id,
-    "appointment_details": appointment_details,
     "phone_number": phone_number
 })
     
@@ -77,28 +76,13 @@ async def make_call(phone_number: str, template_id: str, organization_id: str,
     await lkapi.aclose()
 
 async def main():
-    # Appointment details (only appointment-specific data, no template/patient/org data) will discuss this whether it is required to go to agent or not with Ansaar bhaii
-    appointment_details = {
-        "appointment_date": "07/25/2025",
-        "appointment_time": "06:38 PM",
-        "appointment_datetime": "07/25/2025 06:38 PM",
-        "duration_minutes": 30,
-        "appointment_type": "Initial Consultation",
-        "status": "Scheduled",
-        "provider_name": "Dr. Jane Smith",
-        "location": "Main Clinic, Room 301",
-        "notes": "Patient requires follow-up on previous lab results",
-        "retries": 3,
-        "timezone": "America/New_York"
-    }
-    
     # Test data
-    phone_number = "+12023184935"
+    phone_number = "+19712656795"
     template_id = "8e86ef66-465f-4a5c-8ad4-ed6fca5c493e"
     organization_id = "0da4a59a-275f-4f2d-92f0-5e0c60b0f1da"
     patient_id = "4b3a1edb-76c5-46f4-ad0f-3c164348202b"
-    intake_id = "a8adaf8a-ed8e-48d2-9d45-8130e9c164e3"  
-    await make_call(phone_number, template_id, organization_id, patient_id, appointment_details, intake_id)
+    intake_id = "a8adaf8a-ed8e-48d2-9d45-8130e9c164e3"
+    await make_call(phone_number, template_id, organization_id, patient_id, intake_id)
 
 if __name__ == "__main__":
     asyncio.run(main())
