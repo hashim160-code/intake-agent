@@ -1,8 +1,8 @@
 import asyncio
-import os
-import logging
 import json
-from pathlib import Path
+import logging
+import os
+from typing import Any, Dict, Optional
 from dotenv import load_dotenv
 from livekit import api
 
@@ -14,30 +14,30 @@ logger = logging.getLogger("make-call")
 logger.setLevel(logging.INFO)
 
 # Configuration
-room_name = "my-room"
 outbound_trunk_id = os.getenv("SIP_OUTBOUND_TRUNK_ID")
 
 async def make_call(phone_number: str, template_id: str, organization_id: str,
-                   patient_id: str, intake_id: str):
-    """Create a dispatch and add a SIP participant to call the phone number"""
+                    patient_id: str, intake_id: str, prefilled_greeting: Optional[str] = None) -> Dict[str, Any]:
+    """Create a dispatch and add a SIP participant to call the phone number."""
     lkapi = api.LiveKitAPI()
     
     # Create unique room name
     import uuid
     session_id = str(uuid.uuid4())[:8]
     room_name = f"intake-{session_id}"
-    
-    # Use agent_name to pass data (more professional)
     agent_name = "intake-agent"
     
-    # Store data in metadata
-    metadata = json.dumps({
-    "intake_id": intake_id,
-    "template_id": template_id,
-    "organization_id": organization_id,
-    "patient_id": patient_id,
-    "phone_number": phone_number
-})
+    metadata_payload: Dict[str, Any] = {
+        "intake_id": intake_id,
+        "template_id": template_id,
+        "organization_id": organization_id,
+        "patient_id": patient_id,
+        "phone_number": phone_number,
+    }
+    if prefilled_greeting:
+        metadata_payload["prefilled_greeting"] = prefilled_greeting
+    
+    metadata = json.dumps(metadata_payload)
     
     logger.info(f"Creating dispatch with metadata: {metadata}")
     
@@ -54,7 +54,8 @@ async def make_call(phone_number: str, template_id: str, organization_id: str,
     # Create SIP participant to make the call
     if not outbound_trunk_id or not outbound_trunk_id.startswith("ST_"):
         logger.error("SIP_OUTBOUND_TRUNK_ID is not set or invalid")
-        return
+        await lkapi.aclose()
+        raise RuntimeError("SIP_OUTBOUND_TRUNK_ID is not set or invalid")
     
     logger.info(f"Dialing {phone_number} to room {room_name}")
     
@@ -74,6 +75,14 @@ async def make_call(phone_number: str, template_id: str, organization_id: str,
     
     # Close API connection
     await lkapi.aclose()
+    
+    dispatch_id = getattr(dispatch, "id", None)
+    return {
+        "room_name": room_name,
+        "dispatch_id": dispatch_id,
+        "metadata": metadata_payload,
+        "agent_name": agent_name,
+    }
 
 async def main():
     # Test data
@@ -82,7 +91,8 @@ async def main():
     organization_id = "0da4a59a-275f-4f2d-92f0-5e0c60b0f1da"
     patient_id = "9092481d-0535-42ca-92ad-7c3a595f9ced"
     intake_id = "2b24fa8d-d7e0-4515-82aa-83408529c352"
-    await make_call(phone_number, template_id, organization_id, patient_id, intake_id)
+    result = await make_call(phone_number, template_id, organization_id, patient_id, intake_id)
+    logger.info("Dispatch created: %s", result)
 
 if __name__ == "__main__":
     asyncio.run(main())

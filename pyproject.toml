@@ -30,6 +30,7 @@ dependencies = [
 [project.scripts]
 intake-agent = "src.calling_agent:main"
 make-call = "src.make_call:main"
+intake-api = "src.intake_api:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
