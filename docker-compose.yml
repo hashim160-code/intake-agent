@@ -1,0 +1,11 @@
+services:
+  intake-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile.agent
+    command: ["python", "-m", "src.calling_agent", "start"]
+    env_file:
+      - .env
+    volumes:
+      - ./transcripts:/app/transcripts
+    restart: unless-stopped

@@ -6,7 +6,7 @@ import os
 import logging
 from typing import Optional
 from langfuse import Langfuse
-from api_client import fetch_template_from_api, fetch_patient_from_api, fetch_organization_from_api
+from src.api_client import fetch_template_from_api, fetch_patient_from_api, fetch_organization_from_api
 
 logger = logging.getLogger("calling-agent")
 
