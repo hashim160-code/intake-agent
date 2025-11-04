@@ -19,6 +19,7 @@ dependencies = [
     "livekit-plugins-cartesia>=0.1.0",
     "livekit-plugins-openai>=1.2.0",
     "python-dotenv>=1.0.0",
+    "typing-extensions>=4.8.0",
     "fastapi>=0.104.0",
     "uvicorn>=0.24.0",
     "supabase>=2.0.0",
