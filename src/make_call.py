@@ -86,7 +86,7 @@ async def make_call(phone_number: str, template_id: str, organization_id: str,
 
 async def main():
     # Test data
-    phone_number = "+1971265679"
+    phone_number = "+19712656795"
     template_id = "67c663aa-15ab-4fb0-bf3e-7110405737ef"
     organization_id = "0da4a59a-275f-4f2d-92f0-5e0c60b0f1da"
     patient_id = "9092481d-0535-42ca-92ad-7c3a595f9ced"
