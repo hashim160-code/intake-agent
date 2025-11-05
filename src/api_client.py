@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-API_BASE_URL = "http://localhost:4000"
+API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:4000")
 
 async def fetch_template_from_api(template_id: str) -> Optional[Dict]:
     """
