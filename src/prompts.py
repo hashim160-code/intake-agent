@@ -12,9 +12,9 @@ logger = logging.getLogger("calling-agent")
 
 # Initialize Langfuse client for prompt fetching
 langfuse_client = Langfuse(
-    secret_key=os.getenv("LANGFUSE_SECRET_KEY"),
-    public_key=os.getenv("LANGFUSE_PUBLIC_KEY"),
-    host=os.getenv("LANGFUSE_HOST", "https://cloud.langfuse.com")
+    secret_key=os.getenv("INTAKE_LANGFUSE_SECRET_KEY") or os.getenv("LANGFUSE_SECRET_KEY"),
+    public_key=os.getenv("INTAKE_LANGFUSE_PUBLIC_KEY") or os.getenv("LANGFUSE_PUBLIC_KEY"),
+    host=os.getenv("INTAKE_LANGFUSE_HOST") or os.getenv("LANGFUSE_HOST", "https://cloud.langfuse.com")
 )
 
 async def generate_instructions_from_api(
