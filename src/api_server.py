@@ -102,7 +102,7 @@ async def get_organization(organization_id: str):
 
 def main() -> None:
     host = os.getenv("INTAKE_DATA_API_HOST", "0.0.0.0")
-    port = int(os.getenv("PORT") or os.getenv("INTAKE_DATA_API_PORT", "4000"))
+    port = int(os.getenv("PORT") or os.getenv("INTAKE_DATA_API_PORT", "8080"))
     uvicorn.run("src.api_server:app", host=host, port=port)
 
 

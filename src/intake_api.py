@@ -66,7 +66,7 @@ def main() -> None:
     import uvicorn
 
     host = os.getenv("INTAKE_API_HOST", "0.0.0.0")
-    port = int(os.getenv("PORT") or os.getenv("INTAKE_API_PORT", "8001"))
+    port = int(os.getenv("PORT") or os.getenv("INTAKE_API_PORT", "8080"))
     uvicorn.run("src.intake_api:app", host=host, port=port, reload=False)
 
 

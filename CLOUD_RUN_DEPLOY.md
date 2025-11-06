@@ -1,9 +1,9 @@
 # Cloud Run Deployment Guide
 
-Use this guide to roll out the shared `intake-agent` image to the three Cloud Run services (worker, intake API, data API). The new image tag is:
+Use this guide to roll out the shared `intake-agent` image to the three Cloud Run services (worker, intake API, data API). Replace `<IMAGE_TAG>` with the tag you just pushed (for example `prod-2025-11-06-8080`):
 
 ```
-us-central1-docker.pkg.dev/zscribe/intake-agent/intake-agent:prod-2025-11-06
+us-central1-docker.pkg.dev/zscribe/intake-agent/intake-agent:<IMAGE_TAG>
 ```
 
 ## 1. Prerequisites
@@ -16,10 +16,10 @@ us-central1-docker.pkg.dev/zscribe/intake-agent/intake-agent:prod-2025-11-06
 
 For **all** services ensure:
 
-- **Image**: `us-central1-docker.pkg.dev/zscribe/intake-agent/intake-agent:prod-2025-11-06`
+- **Image**: `us-central1-docker.pkg.dev/zscribe/intake-agent/intake-agent:<IMAGE_TAG>`
 - **Region**: `us-central1`
 - **CPU/Memory**: leave existing values unless a change is required.
-- **Port**: Cloud Run will inject `PORT=8080`; no manual override needed, but do **not** change the container port away from 8080.
+- **Port**: Cloud Run injects `PORT=8080` automatically; both APIs now default to 8080 as well. Do **not** change the container port.
 - **Environment variables** (set or confirm all keys below):
   - `LIVEKIT_URL`
   - `LIVEKIT_API_KEY`
@@ -48,7 +48,7 @@ This service uses the image default command, so no override is necessary.
 
 ```bash
 gcloud run deploy intake-agent-worker \
-  --image us-central1-docker.pkg.dev/zscribe/intake-agent/intake-agent:prod-2025-11-06 \
+  --image us-central1-docker.pkg.dev/zscribe/intake-agent/intake-agent:<IMAGE_TAG> \
   --region us-central1
 ```
 
@@ -60,7 +60,7 @@ Override the command so the container runs the FastAPI app:
 
 ```bash
 gcloud run deploy intake-agent-api \
-  --image us-central1-docker.pkg.dev/zscribe/intake-agent/intake-agent:prod-2025-11-06 \
+  --image us-central1-docker.pkg.dev/zscribe/intake-agent/intake-agent:<IMAGE_TAG> \
   --region us-central1 \
   --command "python" \
   --args "-m,src.intake_api"
@@ -74,7 +74,7 @@ Deploy with the command that launches the Supabase-backed API:
 
 ```bash
 gcloud run deploy intake-agent-data-api \
-  --image us-central1-docker.pkg.dev/zscribe/intake-agent/intake-agent:prod-2025-11-06 \
+  --image us-central1-docker.pkg.dev/zscribe/intake-agent/intake-agent:<IMAGE_TAG> \
   --region us-central1 \
   --command "python" \
   --args "-m,src.api_server"
