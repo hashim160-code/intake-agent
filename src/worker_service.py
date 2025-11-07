@@ -9,6 +9,7 @@ the health probes.
 """
 
 import os
+import sys
 import threading
 
 from fastapi import FastAPI
@@ -20,6 +21,8 @@ from src.calling_agent import entrypoint
 
 def _start_worker() -> None:
     """Launch the LiveKit worker (blocking call)."""
+    # Inject 'start' command for CLI to work properly
+    sys.argv = ["worker", "start"]
     cli.run_app(
         WorkerOptions(
             entrypoint_fnc=entrypoint,
