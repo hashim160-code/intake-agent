@@ -3,9 +3,11 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.agent
-    command: ["python", "-m", "src.calling_agent", "start"]
+    command: ["python", "-m", "src.worker_service"]
     env_file:
       - .env
+    ports:
+      - "8080:8080"
     volumes:
       - ./transcripts:/app/transcripts
     restart: unless-stopped

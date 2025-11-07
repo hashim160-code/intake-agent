@@ -44,15 +44,17 @@ For **all** services ensure:
 
 ### 3.1 Intake Agent Worker
 
-This service uses the image default command, so no override is necessary.
+Run the worker via the new health-enabled entrypoint so Cloud Run sees an HTTP listener:
 
 ```bash
 gcloud run deploy intake-agent-worker \
   --image us-central1-docker.pkg.dev/zscribe/intake-agent/intake-agent:<IMAGE_TAG> \
-  --region us-central1
+  --region us-central1 \
+  --command "python" \
+  --args "-m,src.worker_service"
 ```
 
-If you manage this via the console, choose *Deploy → Existing service → intake-agent-worker*, select the new image, and deploy.
+If you manage this via the console, set *Container command* to `python` and *Arguments* to `-m,src.worker_service`.
 
 ### 3.2 Intake API (`src.intake_api`)
 

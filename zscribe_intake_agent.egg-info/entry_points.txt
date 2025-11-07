@@ -1,3 +1,4 @@
 [console_scripts]
 intake-agent = src.calling_agent:main
+intake-api = src.intake_api:main
 make-call = src.make_call:main
