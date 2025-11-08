@@ -25,9 +25,9 @@ from src.api_client import (
 
 load_dotenv()
 langfuse = Langfuse(
-    secret_key=os.getenv("INTAKE_LANGFUSE_SECRET_KEY") or os.getenv("LANGFUSE_SECRET_KEY"),
-    public_key=os.getenv("INTAKE_LANGFUSE_PUBLIC_KEY") or os.getenv("LANGFUSE_PUBLIC_KEY"),
-    host=os.getenv("INTAKE_LANGFUSE_HOST") or os.getenv("LANGFUSE_HOST", "https://cloud.langfuse.com")
+    secret_key=os.getenv("LANGFUSE_SECRET_KEY"),
+    public_key=os.getenv("LANGFUSE_PUBLIC_KEY"),
+    host=os.getenv("LANGFUSE_HOST", "https://cloud.langfuse.com")
 )
 
 AGENT_NAME = os.getenv("INTAKE_AGENT_NAME", "ZScribe Intake Assistant")
@@ -362,4 +362,3 @@ if __name__ == "__main__":
             agent_name="intake-agent",
         )
     )
-

@@ -10,9 +10,6 @@ load_dotenv()
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
-if not SUPABASE_URL or not SUPABASE_KEY:
-    raise RuntimeError("Missing Supabase configuration; set SUPABASE_URL and SUPABASE_KEY")
-
 # Create Supabase client
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
@@ -100,11 +97,5 @@ async def get_organization(organization_id: str):
     except Exception as e:
         return {"success": False, "message": f"Error: {str(e)}"}
 
-def main() -> None:
-    host = os.getenv("INTAKE_DATA_API_HOST", "0.0.0.0")
-    port = int(os.getenv("PORT") or os.getenv("INTAKE_DATA_API_PORT", "8080"))
-    uvicorn.run("src.api_server:app", host=host, port=port)
-
-
 if __name__ == "__main__":
-    main()
+    uvicorn.run(app, host="0.0.0.0", port=8000)
