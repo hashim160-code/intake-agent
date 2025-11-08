@@ -16,7 +16,6 @@ class IntakeCallRequest(BaseModel):
     organization_id: str
     patient_id: str
     intake_id: str
-    greeting_override: Optional[str] = Field(None, description="Optional pre-composed greeting already delivered to the patient.")
 
 
 class IntakeCallResponse(BaseModel):
@@ -50,7 +49,6 @@ async def schedule_intake_call(payload: IntakeCallRequest) -> IntakeCallResponse
             organization_id=payload.organization_id,
             patient_id=payload.patient_id,
             intake_id=payload.intake_id,
-            prefilled_greeting=payload.greeting_override,
         )
     except Exception as exc:  # pragma: no cover - defensive logging
         logger.exception("Failed to dispatch intake call for %s", payload.intake_id)
