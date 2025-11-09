@@ -1,0 +1,32 @@
+# Dockerfile for intake-api only (no worker)
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy dependency files
+COPY pyproject.toml ./
+
+# Install Python dependencies
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir .
+
+# Copy only necessary files for intake-api
+COPY src/intake_api.py ./src/
+COPY src/make_call.py ./src/
+COPY src/__init__.py ./src/
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1
+ENV PORT=8080
+
+# Expose port
+EXPOSE 8080
+
+# Run intake-api with uvicorn directly, using PORT env var
+CMD ["sh", "-c", "uvicorn src.intake_api:app --host 0.0.0.0 --port ${PORT:-8080}"]
