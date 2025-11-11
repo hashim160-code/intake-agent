@@ -474,6 +474,112 @@ phone_numbers table:
 
 ---
 
+## Implementation Timeline
+
+### Recommended Timeline: 5 Days (6 hours/day)
+
+**Assumptions:**
+- ~6 hours of focused development per day
+- Leadership decisions are made before starting
+- Telnyx API credentials are available
+- Access to Supabase database
+
+---
+
+#### **Day 1: Database & Pool Setup (6 hours)**
+
+**Tasks:**
+- Create `phone_numbers` table in Supabase (30 minutes)
+- Set up Telnyx SDK and test API connection (1 hour)
+- Write script to purchase initial 40 numbers (2 hours)
+- Run the purchase script and populate database (30 minutes)
+- Test queries and verify pool health (2 hours)
+
+**Deliverable:** 40 numbers purchased and stored in database, ready to assign
+
+---
+
+#### **Day 2: Phone Number Service (6 hours)**
+
+**Tasks:**
+- Build phone number assignment service/function (3 hours)
+  - Get available number from pool
+  - Assign to organization
+  - Update database with assignment
+  - Handle edge cases (pool empty, etc.)
+- Write pool monitoring logic (1.5 hours)
+- Write auto-replenishment background job (1.5 hours)
+
+**Deliverable:** Core phone number service working with assignment and monitoring
+
+---
+
+#### **Day 3: Integration with Registration (6 hours)**
+
+**Tasks:**
+- Identify organization creation endpoint in data-api (1 hour)
+- Integrate phone number assignment into registration flow (3 hours)
+- Add error handling and rollback logic (1 hour)
+- Update `organizations.phone` field when assigned (1 hour)
+
+**Deliverable:** Phone numbers automatically assigned during organization registration
+
+---
+
+#### **Day 4: Testing & Fixes (6 hours)**
+
+**Tasks:**
+- Test full registration flow end-to-end (2 hours)
+- Create and test 5-10 test organizations (2 hours)
+- Fix any bugs or edge cases discovered (2 hours)
+
+**Deliverable:** Stable, tested implementation ready for production
+
+---
+
+#### **Day 5: Deployment & Monitoring (3-4 hours)**
+
+**Tasks:**
+- Deploy to Cloud Run (1 hour)
+- Set up monitoring/alerts for pool health (1 hour)
+- Create admin queries for viewing pool status (1 hour)
+- Final production testing (1 hour)
+
+**Deliverable:** Live in production, ready for first real organizations
+
+---
+
+### Aggressive Timeline: 3 Days (Minimal Viable Implementation)
+
+**If timeline is critical**, you can implement in 3 days by skipping auto-replenishment initially:
+
+**Day 1:** Database setup + Purchase 40 numbers (6 hours)
+**Day 2:** Build assignment service + integrate with registration (6 hours)
+**Day 3:** Testing + deployment (6 hours)
+
+**Trade-off:** No auto-replenishment means you'll need to manually purchase more numbers when the pool runs low (around 30-35 organizations). Auto-replenishment can be added later when approaching capacity.
+
+---
+
+### Critical Dependencies (Must Have Before Starting):
+
+**Required Information:**
+1. ✅ Which service handles organization creation? (data-api vs auth service)
+2. ✅ Organization creation endpoint path
+3. ✅ Area code preference decision (affects Day 1 purchase strategy)
+
+**Required Access:**
+1. ✅ Telnyx API credentials (API Key and Profile ID)
+2. ✅ Supabase database access with create table permissions
+3. ✅ Access to organization registration code repository
+
+**Can Be Decided Later:**
+- Dashboard/admin tools (can build in Month 2)
+- Number recycling policy (can implement when needed)
+- Advanced monitoring and alerting
+
+---
+
 ## Implementation Approaches
 
 ### Approach A: Synchronous Provisioning
@@ -673,34 +779,6 @@ phone_numbers table:
 - **Number Portability Requests**: How many want specific numbers?
 - **Churn Impact**: Do numbers affect retention?
 - **Support Tickets**: Phone number related issues
-
----
-
-## Timeline & Phases
-
-### Phase 1: Initial Setup (Week 1-2)
-- Set up Telnyx account
-- Purchase initial pool of 40 numbers
-- Build basic assignment logic
-- Test with first 5-10 pilot organizations
-
-### Phase 2: Automation (Week 3-4)
-- Implement pool monitoring
-- Build auto-replenishment
-- Add admin dashboard
-- Set up alerts and monitoring
-
-### Phase 3: Advanced Features (Month 2)
-- Area code selection
-- Number portability
-- International numbers
-- SMS integration
-
-### Phase 4: Optimization (Month 3+)
-- Cost optimization
-- Number recycling logic
-- Advanced analytics
-- Self-service portal for orgs
 
 ---
 
