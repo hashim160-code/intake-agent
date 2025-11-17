@@ -19,6 +19,7 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # Copy only necessary files for intake-api
 COPY src/intake_api.py ./src/
 COPY src/make_call.py ./src/
+COPY src/db_utils.py ./src/
 COPY src/__init__.py ./src/
 
 # Set environment variables

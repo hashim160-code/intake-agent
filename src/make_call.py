@@ -5,6 +5,7 @@ import os
 from typing import Any, Dict, Optional
 from dotenv import load_dotenv
 from livekit import api
+from src.db_utils import get_organization_phone
 
 # Load environment variables
 load_dotenv()
@@ -19,8 +20,19 @@ outbound_trunk_id = os.getenv("SIP_OUTBOUND_TRUNK_ID")
 async def make_call(phone_number: str, template_id: str, organization_id: str,
                     patient_id: str, intake_id: str, prefilled_greeting: Optional[str] = None) -> Dict[str, Any]:
     """Create a dispatch and add a SIP participant to call the phone number."""
+
+    # Fetch organization's phone number for caller ID
+    org_phone_number = get_organization_phone(organization_id)
+
+    if not org_phone_number:
+        error_msg = f"Organization {organization_id} does not have a phone number assigned. Please assign a phone number before making calls."
+        logger.error(error_msg)
+        raise ValueError(error_msg)
+
+    logger.info(f"Using caller ID: {org_phone_number} for organization {organization_id}")
+
     lkapi = api.LiveKitAPI()
-    
+
     # Create unique room name
     import uuid
     session_id = str(uuid.uuid4())[:8]
@@ -67,9 +79,10 @@ async def make_call(phone_number: str, template_id: str, organization_id: str,
                 sip_trunk_id=outbound_trunk_id,
                 sip_call_to=phone_number,
                 participant_identity="phone_user",
+                sip_number=org_phone_number,  # Dynamic caller ID!
             )
         )
-        logger.info(f"Created SIP participant: {sip_participant}")
+        logger.info(f"Created SIP participant with caller ID {org_phone_number}: {sip_participant}")
     except Exception as e:
         logger.error(f"Error creating SIP participant: {e}")
     
