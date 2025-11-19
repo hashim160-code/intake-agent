@@ -2,17 +2,55 @@
 ZScribe Intake Agent - AI-powered medical intake calls
 """
 
+# ------------------------------------------------------------------ #
+# Logging Configuration - MUST BE FIRST!
+# ------------------------------------------------------------------ #
+from __future__ import annotations
+
 import logging
+
+# Configure logging immediately before any other imports
+logging.getLogger().handlers.clear()
+logging.basicConfig(
+    level=logging.ERROR,
+    format="%(asctime)s %(name)s %(levelname)s %(message)s",
+    force=True,
+)
+
+# Aggressively suppress external libraries BEFORE they get imported
+logging.getLogger("httpx").setLevel(logging.CRITICAL)
+logging.getLogger("httpcore").setLevel(logging.CRITICAL)
+logging.getLogger("httpcore.http11").setLevel(logging.CRITICAL)
+logging.getLogger("httpcore.connection").setLevel(logging.CRITICAL)
+logging.getLogger("deepgram").setLevel(logging.CRITICAL)
+logging.getLogger("openai").setLevel(logging.CRITICAL)
+logging.getLogger("openai._base_client").setLevel(logging.CRITICAL)
+logging.getLogger("azure").setLevel(logging.CRITICAL)
+logging.getLogger("azure.core").setLevel(logging.CRITICAL)
+logging.getLogger("urllib3").setLevel(logging.CRITICAL)
+logging.getLogger("langsmith").setLevel(logging.CRITICAL)
+logging.getLogger("langsmith.client").setLevel(logging.CRITICAL)
+logging.getLogger("langchain").setLevel(logging.ERROR)
+logging.getLogger("langgraph").setLevel(logging.ERROR)
+logging.getLogger("livekit").setLevel(logging.INFO)
+# Suppress LiveKit memory warnings specifically (they're too conservative for AI apps)
+logging.getLogger("livekit.agents").setLevel(logging.INFO)
+
+# ------------------------------------------------------------------ #
+# Imports and Environment Setup
+# ------------------------------------------------------------------ #
+
 import os
 import json
 from typing import Optional
 import random
 import asyncio
 from dotenv import load_dotenv
-from livekit.agents import JobContext, WorkerOptions, cli
+from livekit.agents import JobContext, WorkerOptions, cli, RoomInputOptions, JobProcess
 from livekit.agents.voice import Agent
 from livekit.agents import AgentSession, inference
-from livekit.plugins import silero, deepgram, baseten
+from livekit.plugins import silero, deepgram, noise_cancellation
+from livekit.plugins.turn_detector.english import EnglishModel
 from src.prompts import generate_instructions_from_api, get_fallback_instructions
 from datetime import datetime
 from livekit import api
@@ -40,8 +78,8 @@ GREETING_VARIATIONS = [
     "Hello {patient}, you're speaking with {agent} representing {organization}. Is it okay if we continue with your intake call now?",
 ]
 
-logger = logging.getLogger("calling-agent")
-logger.setLevel(logging.INFO)
+# Setup logger
+logger = logging.getLogger(__name__)
 
 # Pre-load VAD model to avoid timeout during job acceptance
 _vad_model = silero.VAD.load()
@@ -53,6 +91,13 @@ _vad_model = silero.VAD.load()
 #     activation_threshold=0.35,        # Lower threshold = more sensitive (0.5 default)
 #     # sample_rate=16000
 # )
+
+
+def prewarm(proc: JobProcess):
+    """Prewarm function to load VAD and TTS models before job acceptance"""
+    proc.userdata["vad"] = silero.VAD.load()
+    proc.userdata["tts"] = deepgram.TTS(model="aura-2-andromeda-en", mip_opt_out=True)
+
 
 class IntakeAgent(Agent):
     def __init__(
@@ -68,23 +113,26 @@ class IntakeAgent(Agent):
         self.patient_id = patient_id
         self.patient_name = patient_name or DEFAULT_PATIENT_NAME
         self.organization_name = organization_name or DEFAULT_ORGANIZATION_NAME
-        
+
         # Use fallback instructions initially
         instructions = get_fallback_instructions()
-        
+
         super().__init__(
             instructions=instructions,
-            stt=deepgram.STT(model="nova-3", language="en-US", smart_format=True),
+            stt=deepgram.STTv2(
+                model="flux-general-en",        # ✅ Optimized for telephony
+                eager_eot_threshold=0.3,         # ✅ Faster response time
+            ),
             llm=inference.LLM(
                 model="moonshotai/kimi-k2-instruct",
                 provider="baseten",
                 extra_kwargs={
                     "max_completion_tokens": 1000,
-                    "temperature": 0.7,  # Adjust for natural conversation
+                    "temperature": 0.7,
                 },
             ),
             tts=deepgram.TTS(model="aura-2-andromeda-en", mip_opt_out=True),
-            vad=_vad_model
+            vad=_vad_model,
         )
 
     async def on_enter(self):
@@ -264,7 +312,13 @@ async def entrypoint(ctx: JobContext):
 
     logger.info("Langfuse trace started for call session")
 
-    session = AgentSession()
+    # AgentSession with turn detection improvements
+    session = AgentSession(
+        turn_detection=EnglishModel(),      # ✅ Better conversation flow
+        min_interruption_words=2,           # ✅ Natural interruptions
+        user_away_timeout=30,               # ✅ Handle silence
+    )
+
     await session.start(
         agent=IntakeAgent(
             template_id=template_id,
@@ -274,6 +328,9 @@ async def entrypoint(ctx: JobContext):
             organization_name=organization_name,
         ),
         room=ctx.room,
+        room_input_options=RoomInputOptions(
+            noise_cancellation=noise_cancellation.BVCTelephony()  # ✅ Noise cancellation for crystal clear audio!
+        ),
     )
 
     # Save transcript when session ends
@@ -356,9 +413,15 @@ async def entrypoint(ctx: JobContext):
     ctx.add_shutdown_callback(save_transcript)
 
 if __name__ == "__main__":
-    cli.run_app(
-        WorkerOptions(
-            entrypoint_fnc=entrypoint,
-            agent_name="intake-agent",
-        )
+    # Configure WorkerOptions with higher memory thresholds
+    worker_options = WorkerOptions(
+        entrypoint_fnc=entrypoint,
+        agent_name="intake-agent",
+        # Increase memory warning threshold to 1GB (1024MB) to avoid false warnings
+        # Default is 500MB which is too low for complex AI applications
+        job_memory_warn_mb=1024,  # Warn at 1GB instead of 500MB
+        job_memory_limit_mb=4096,  # Set limit at 4GB for safety
+        initialize_process_timeout=5000,  # 5 second timeout for process initialization
+        prewarm_fnc=prewarm,
     )
+    cli.run_app(worker_options)
