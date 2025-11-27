@@ -1,16 +1,12 @@
-# Use Python 3.11 slim image
+# Dockerfile for data-api service (api_server.py only)
 FROM python:3.11-slim
 
-# Set working directory
 WORKDIR /app
 
-# Install system dependencies required for audio processing and LiveKit
+# Install system dependencies
 RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
-    make \
-    libffi-dev \
-    libssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy dependency files
@@ -20,20 +16,15 @@ COPY pyproject.toml ./
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir .
 
-# Copy application code
-COPY src/ ./src/
-COPY main.py ./
+# Copy only necessary files for data-api
+COPY src/api_server.py ./src/
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
 ENV PORT=8080
 
-# Expose port (Cloud Run will override this)
+# Expose port
 EXPOSE 8080
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD python -c "import requests; requests.get('http://localhost:8080/health', timeout=5)"
-
-# Run the application
-CMD ["python", "main.py"]
+# Run api_server with uvicorn directly, using PORT env var
+CMD ["sh", "-c", "uvicorn src.api_server:app --host 0.0.0.0 --port ${PORT:-8080}"]

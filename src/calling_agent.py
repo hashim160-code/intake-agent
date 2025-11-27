@@ -50,7 +50,7 @@ from livekit.agents import JobContext, WorkerOptions, cli, RoomInputOptions, Job
 from livekit.agents.voice import Agent
 from livekit.agents import AgentSession, inference
 from livekit.plugins import silero, deepgram, noise_cancellation
-from livekit.plugins.turn_detector.english import EnglishModel
+# from livekit.plugins.turn_detector.english import EnglishModel  # Disabled - requires runtime model download
 from src.prompts import generate_instructions_from_api, get_fallback_instructions
 from datetime import datetime
 from livekit import api
@@ -165,7 +165,11 @@ class IntakeAgent(Agent):
         except Exception as e:
             logger.error("Failed to load dynamic instructions: %s", e, exc_info=True)
             logger.error("Using fallback instructions instead")
-        self.session.say(
+
+        # Small delay to ensure audio stream is ready before speaking
+        await asyncio.sleep(0.5)
+
+        await self.session.say(
             greeting,
             allow_interruptions=True,
             add_to_chat_ctx=True,
@@ -313,8 +317,10 @@ async def entrypoint(ctx: JobContext):
     logger.info("Langfuse trace started for call session")
 
     # AgentSession with turn detection improvements
+    # Note: EnglishModel() requires model files that can't be pre-downloaded at build time
+    # Using default turn detection for now
     session = AgentSession(
-        turn_detection=EnglishModel(),      # ✅ Better conversation flow
+        # turn_detection=EnglishModel(),    # Disabled - requires runtime model download
         min_interruption_words=2,           # ✅ Natural interruptions
         user_away_timeout=30,               # ✅ Handle silence
     )

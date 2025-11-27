@@ -22,6 +22,9 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # Copy all source files (worker needs access to api_client, prompts, etc.)
 COPY src/ ./src/
 
+# Download models during build (prevents slow cold starts)
+RUN python src/download_models.py download-files
+
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
 ENV PORT=8080
