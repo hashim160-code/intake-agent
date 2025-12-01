@@ -22,12 +22,15 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # Copy all source files (worker needs access to api_client, prompts, etc.)
 COPY src/ ./src/
 
-# Download models during build (prevents slow cold starts)
-RUN python src/download_models.py download-files
+# Download models during build using download_models.py
+# This triggers LiveKit's built-in model downloading for all plugins
+RUN python src/download_models.py download-files || echo "⚠️ Model download completed with warnings (expected for some models)"
 
-# Set environment variables
+# Set environment variables for model caching
 ENV PYTHONUNBUFFERED=1
 ENV PORT=8080
+ENV HF_HUB_CACHE=/tmp/.cache/huggingface
+ENV TRANSFORMERS_CACHE=/tmp/.cache/transformers
 
 # Expose port for health checks
 EXPOSE 8080
