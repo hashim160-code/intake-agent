@@ -50,7 +50,7 @@ from livekit.agents import JobContext, WorkerOptions, cli, RoomInputOptions, Job
 from livekit.agents.voice import Agent
 from livekit.agents import AgentSession, inference
 from livekit.plugins import silero, deepgram, noise_cancellation
-# from livekit.plugins.turn_detector.english import EnglishModel  # Disabled - requires runtime model download
+from livekit.plugins.turn_detector.english import EnglishModel
 from src.prompts import generate_instructions_from_api, get_fallback_instructions
 from datetime import datetime
 from livekit import api
@@ -81,22 +81,14 @@ GREETING_VARIATIONS = [
 # Setup logger
 logger = logging.getLogger(__name__)
 
-# Pre-load VAD model to avoid timeout during job acceptance
+# Pre-load VAD model - using defaults like voice/ agent
 _vad_model = silero.VAD.load()
-# new one - tuned a little bit
-# _vad_model = silero.VAD.load(
-#     # min_speech_duration=0.05,        # Minimum duration to start detecting speech
-#     min_silence_duration=0.1,        # KEY: Wait 0.1 second of silence before ending turn
-#     # prefix_padding_duration=0.5,     # Add padding at start of speech
-#     activation_threshold=0.35,        # Lower threshold = more sensitive (0.5 default)
-#     # sample_rate=16000
-# )
 
 
 def prewarm(proc: JobProcess):
     """Prewarm function to load VAD and TTS models before job acceptance"""
-    proc.userdata["vad"] = silero.VAD.load()
-    proc.userdata["tts"] = deepgram.TTS(model="aura-2-andromeda-en", mip_opt_out=True)
+    proc.userdata["vad"] = silero.VAD.load()  # Using defaults like voice/ agent
+    proc.userdata["tts"] = deepgram.TTS(model="aura-2-thalia-en", mip_opt_out=True)
 
 
 class IntakeAgent(Agent):
@@ -119,19 +111,21 @@ class IntakeAgent(Agent):
 
         super().__init__(
             instructions=instructions,
-            stt=deepgram.STTv2(
-                model="flux-general-en",        # ✅ Optimized for telephony
-                eager_eot_threshold=0.3,         # ✅ Faster response time
+            stt=deepgram.STT(
+                model="nova-3",
+                language="en-US",
+                smart_format=True,
             ),
             llm=inference.LLM(
-                model="moonshotai/kimi-k2-instruct",
+                model="moonshotai/Kimi-K2-Instruct-0905",
                 provider="baseten",
                 extra_kwargs={
-                    "max_completion_tokens": 1000,
-                    "temperature": 0.7,
+                    "max_tokens": 4000,
+                    "temperature": 0.2,
+                    "top_p": 0.5,
                 },
             ),
-            tts=deepgram.TTS(model="aura-2-andromeda-en", mip_opt_out=True),
+            tts=deepgram.TTS(model="aura-2-thalia-en", mip_opt_out=True),
             vad=_vad_model,
         )
 
@@ -316,13 +310,11 @@ async def entrypoint(ctx: JobContext):
 
     logger.info("Langfuse trace started for call session")
 
-    # AgentSession with turn detection improvements
-    # Note: EnglishModel() requires model files that can't be pre-downloaded at build time
-    # Using default turn detection for now
+    # AgentSession with EnglishModel turn detection (matching voice/ agent)
     session = AgentSession(
-        # turn_detection=EnglishModel(),    # Disabled - requires runtime model download
-        min_interruption_words=2,           # ✅ Natural interruptions
-        user_away_timeout=30,               # ✅ Handle silence
+        turn_detection=EnglishModel(),      # AI-powered turn detection
+        min_interruption_words=2,           # Allow natural interruptions
+        user_away_timeout=15,               # Handle silence (matching voice/ agent)
     )
 
     await session.start(

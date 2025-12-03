@@ -3,13 +3,14 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install system dependencies
+# Install system dependencies (including ffmpeg for audio processing)
 RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
     make \
     libffi-dev \
     libssl-dev \
+    ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy dependency files
@@ -24,11 +25,12 @@ COPY src/ ./src/
 
 # Download models during build using download_models.py
 # This triggers LiveKit's built-in model downloading for all plugins
-RUN python src/download_models.py download-files || echo "⚠️ Model download completed with warnings (expected for some models)"
+RUN python src/download_models.py download-files || echo "Model download completed with warnings (expected for some models)"
 
 # Set environment variables for model caching
 ENV PYTHONUNBUFFERED=1
 ENV PORT=8080
+ENV PYTHONPATH=/app/src
 ENV HF_HUB_CACHE=/tmp/.cache/huggingface
 ENV TRANSFORMERS_CACHE=/tmp/.cache/transformers
 

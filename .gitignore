@@ -2,3 +2,5 @@
 .venv/
 recordings/
 intake_notes/
+voice/
+.claude/
