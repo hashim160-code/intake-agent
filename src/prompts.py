@@ -6,16 +6,29 @@ import os
 import logging
 from typing import Optional
 from langfuse import Langfuse
-from src.api_client import fetch_template_from_api, fetch_patient_from_api, fetch_organization_from_api
+from src.db_utils import fetch_template, fetch_patient, fetch_organization
 
 logger = logging.getLogger("calling-agent")
 
-# Initialize Langfuse client for prompt fetching
-langfuse_client = Langfuse(
-    secret_key=os.getenv("INTAKE_LANGFUSE_SECRET_KEY") or os.getenv("LANGFUSE_SECRET_KEY"),
-    public_key=os.getenv("INTAKE_LANGFUSE_PUBLIC_KEY") or os.getenv("LANGFUSE_PUBLIC_KEY"),
-    host=os.getenv("INTAKE_LANGFUSE_HOST") or os.getenv("LANGFUSE_HOST", "https://cloud.langfuse.com")
-)
+# Initialize Langfuse client for prompt fetching (with error handling)
+langfuse_client = None
+try:
+    langfuse_secret = os.getenv("INTAKE_LANGFUSE_SECRET_KEY") or os.getenv("LANGFUSE_SECRET_KEY")
+    langfuse_public = os.getenv("INTAKE_LANGFUSE_PUBLIC_KEY") or os.getenv("LANGFUSE_PUBLIC_KEY")
+    langfuse_host = os.getenv("INTAKE_LANGFUSE_HOST") or os.getenv("LANGFUSE_HOST", "https://cloud.langfuse.com")
+
+    if langfuse_secret and langfuse_public:
+        langfuse_client = Langfuse(
+            secret_key=langfuse_secret,
+            public_key=langfuse_public,
+            host=langfuse_host
+        )
+        logger.info("Langfuse prompt client initialized successfully")
+    else:
+        logger.warning("Langfuse credentials not found for prompts - will use fallback instructions")
+except Exception as e:
+    logger.error("Failed to initialize Langfuse prompt client: %s - will use fallback instructions", e, exc_info=True)
+    langfuse_client = None
 
 async def generate_instructions_from_api(
     template_id: str,
@@ -36,9 +49,9 @@ async def generate_instructions_from_api(
         )
 
     # Fetch all data in parallel
-    template_data = await fetch_template_from_api(template_id)
-    patient_data = await fetch_patient_from_api(patient_id) if patient_id else None
-    organization_data = await fetch_organization_from_api(organization_id) if organization_id else None
+    template_data = await fetch_template(template_id)
+    patient_data = await fetch_patient(patient_id) if patient_id else None
+    organization_data = await fetch_organization(organization_id) if organization_id else None
 
     if not template_data:
         logger.warning("Template data not available, using fallback instructions")
@@ -58,24 +71,28 @@ async def generate_instructions_from_api(
         question_text = question.get('text', 'Question not available')
         questions_list += f"{i}. {question_text}\n"
 
-    # Fetch prompt from Langfuse
-    try:
-        prompt = langfuse_client.get_prompt("intake-agent-instructions", label="production")
+    # Fetch prompt from Langfuse (with null check)
+    if langfuse_client:
+        try:
+            prompt = langfuse_client.get_prompt("intake-agent-instructions", label="production")
 
-        # Compile prompt with variables
-        instructions = prompt.compile(
-            patient_name=patient_name,
-            organization_name=organization_name,
-            template_name=template_name,
-            instructions_for_ai=instructions_for_ai,
-            questions_list=questions_list.strip()
-        )
+            # Compile prompt with variables
+            instructions = prompt.compile(
+                patient_name=patient_name,
+                organization_name=organization_name,
+                template_name=template_name,
+                instructions_for_ai=instructions_for_ai,
+                questions_list=questions_list.strip()
+            )
 
-        logger.info("Successfully fetched and compiled prompt from Langfuse")
-        return append_greeting_note(instructions)
+            logger.info("Successfully fetched and compiled prompt from Langfuse")
+            return append_greeting_note(instructions)
 
-    except Exception as e:
-        logger.error(f"Failed to fetch prompt from Langfuse: {e}, using fallback")
+        except Exception as e:
+            logger.error(f"Failed to fetch prompt from Langfuse: {e}, using fallback")
+            return append_greeting_note(get_fallback_instructions())
+    else:
+        logger.warning("Langfuse client not available, using fallback instructions")
         return append_greeting_note(get_fallback_instructions())
 
 def get_fallback_instructions() -> str:

@@ -55,22 +55,41 @@ from src.prompts import generate_instructions_from_api, get_fallback_instruction
 from datetime import datetime
 from livekit import api
 from langfuse import Langfuse
-from src.api_client import (
-    save_transcript_to_db,
-    fetch_patient_from_api,
-    fetch_organization_from_api,
+from src.db_utils import (
+    save_transcript as save_transcript_to_db,
+    fetch_patient,
+    fetch_organization,
 )
 
 load_dotenv()
-langfuse = Langfuse(
-    secret_key=os.getenv("LANGFUSE_SECRET_KEY"),
-    public_key=os.getenv("LANGFUSE_PUBLIC_KEY"),
-    host=os.getenv("LANGFUSE_HOST", "https://cloud.langfuse.com")
-)
 
-AGENT_NAME = os.getenv("INTAKE_AGENT_NAME", "ZScribe Intake Assistant")
+# Setup logger first
+logger = logging.getLogger(__name__)
+
+# Initialize Langfuse with error handling
+langfuse = None
+try:
+    langfuse_secret = os.getenv("LANGFUSE_SECRET_KEY")
+    langfuse_public = os.getenv("LANGFUSE_PUBLIC_KEY")
+    langfuse_host = os.getenv("LANGFUSE_HOST", "https://cloud.langfuse.com")
+
+    if langfuse_secret and langfuse_public:
+        langfuse = Langfuse(
+            secret_key=langfuse_secret,
+            public_key=langfuse_public,
+            host=langfuse_host
+        )
+        logger.info("Langfuse initialized successfully")
+    else:
+        logger.warning("Langfuse credentials not found - tracing will be disabled")
+except Exception as e:
+    logger.error("Failed to initialize Langfuse: %s - tracing will be disabled", e, exc_info=True)
+    langfuse = None
+
+# Constants
+AGENT_NAME = "ZScribe Intake Coordinator"
 DEFAULT_PATIENT_NAME = "there"
-DEFAULT_ORGANIZATION_NAME = os.getenv("INTAKE_ORGANIZATION_NAME", "ZScribe")
+DEFAULT_ORGANIZATION_NAME = "our office"
 GREETING_VARIATIONS = [
     "Hello {patient}, this is {agent} calling from {organization}. Is this a good time to talk for a few minutes?",
     "Hi {patient}, {agent} from {organization}. Do you have a moment so we can prepare for your upcoming appointment?",
@@ -99,12 +118,14 @@ class IntakeAgent(Agent):
         patient_id: str,
         patient_name: Optional[str] = None,
         organization_name: Optional[str] = None,
+        agent_name: Optional[str] = None,
     ) -> None:
         self.template_id = template_id
         self.organization_id = organization_id
         self.patient_id = patient_id
         self.patient_name = patient_name or DEFAULT_PATIENT_NAME
         self.organization_name = organization_name or DEFAULT_ORGANIZATION_NAME
+        self.agent_name = agent_name or AGENT_NAME
 
         # Use fallback instructions initially
         instructions = get_fallback_instructions()
@@ -133,9 +154,10 @@ class IntakeAgent(Agent):
         """Called when agent enters the room"""
         patient_name = self.patient_name
         organization_name = self.organization_name
+        agent_name = self.agent_name
         greeting_template = random.choice(GREETING_VARIATIONS)
         greeting = greeting_template.format(
-            agent=AGENT_NAME, patient=patient_name, organization=organization_name
+            agent=agent_name, patient=patient_name, organization=organization_name
         )
 
         try:
@@ -242,8 +264,8 @@ async def entrypoint(ctx: JobContext):
     organization_profile = None
     try:
         patient_result, organization_result = await asyncio.gather(
-            fetch_patient_from_api(patient_id),
-            fetch_organization_from_api(organization_id),
+            fetch_patient(patient_id),
+            fetch_organization(organization_id),
             return_exceptions=True,
         )
     except Exception as exc:
@@ -282,34 +304,42 @@ async def entrypoint(ctx: JobContext):
         patient_id,
     )
 
-    # Start Langfuse span and set initial trace attributes
-    span = langfuse.start_span(name="intake-call")
+    # Start Langfuse span and set initial trace attributes (with null check)
+    span = None
+    if langfuse:
+        try:
+            span = langfuse.start_span(name="intake-call")
 
-    # Set input data - the parameters that initiated this call
-    call_input = {
-        "organization_id": organization_id,
-        "template_id": template_id,
-        "patient_id": patient_id,
-        "organization_name": organization_name,
-        "patient_name": patient_name,
-        "job_id": ctx.job.id,
-        "room_name": ctx.room.name
-    }
+            # Set input data - the parameters that initiated this call
+            call_input = {
+                "organization_id": organization_id,
+                "template_id": template_id,
+                "patient_id": patient_id,
+                "organization_name": organization_name,
+                "patient_name": patient_name,
+                "job_id": ctx.job.id,
+                "room_name": ctx.room.name
+            }
 
-    span.update_trace(
-        user_id=patient_id,
-        session_id=ctx.room.name,
-        input=call_input,
-        metadata={
-            "organization_id": organization_id,
-            "template_id": template_id,
-            "job_id": ctx.job.id,
-            "call_started_at": datetime.now().isoformat()
-        },
-        tags=["production", "intake-agent"]
-    )
+            span.update_trace(
+                user_id=patient_id,
+                session_id=ctx.room.name,
+                input=call_input,
+                metadata={
+                    "organization_id": organization_id,
+                    "template_id": template_id,
+                    "job_id": ctx.job.id,
+                    "call_started_at": datetime.now().isoformat()
+                },
+                tags=["production", "intake-agent"]
+            )
 
-    logger.info("Langfuse trace started for call session")
+            logger.info("Langfuse trace started for call session")
+        except Exception as e:
+            logger.warning("Failed to start Langfuse trace: %s", e)
+            span = None
+    else:
+        logger.debug("Langfuse not available - skipping tracing")
 
     # AgentSession with EnglishModel turn detection (matching voice/ agent)
     session = AgentSession(
@@ -335,22 +365,10 @@ async def entrypoint(ctx: JobContext):
     # Save transcript when session ends
     async def save_transcript():
         try:
-            # # Create transcripts folder if it doesn't exist
-            # os.makedirs("transcripts", exist_ok=True)
-
-            # # Create filename with timestamp
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            filename = f"transcripts/transcript_{ctx.room.name}_{timestamp}.json"
-
             # Get conversation history
             transcript_data = session.history.to_dict()
 
-            # # Save conversation history to file
-            # with open(filename, 'w', encoding='utf-8') as f:
-            #     json.dump(transcript_data, f, indent=2, ensure_ascii=False)
-
-            # logger.info("Transcript saved: %s", filename)
-
+            # Save to database
             if intake_id:
                 try:
                     success = await save_transcript_to_db(intake_id, transcript_data)
@@ -358,12 +376,12 @@ async def entrypoint(ctx: JobContext):
                         logger.info("Transcript saved to database for intake: %s", intake_id)
                     else:
                         logger.error("Failed to save transcript to database for intake: %s", intake_id)
-                except Exception as api_error:
-                    logger.error("Error calling transcript API: %s", api_error, exc_info=True)
+                except Exception as db_error:
+                    logger.error("Error saving transcript to database: %s", db_error, exc_info=True)
             else:
                 logger.warning("No intake_id found in metadata, skipping database save")
-                
-            # Build a flattened transcript string for evaluations/quality checks
+
+            # Build a flattened transcript string for Langfuse trace
             transcript_items = transcript_data.get("items", [])
             plain_transcript_segments = []
 
@@ -374,7 +392,6 @@ async def entrypoint(ctx: JobContext):
                 if isinstance(content, str):
                     text = content
                 elif isinstance(content, list):
-                    # Join list entries (they are typically strings)
                     text = " ".join(str(part) for part in content if part)
                 else:
                     text = ""
@@ -384,29 +401,32 @@ async def entrypoint(ctx: JobContext):
 
             transcript_text = "\n".join(plain_transcript_segments)
 
-            # Update Langfuse trace with final data (v3.x API)
-            span.update_trace(
-                output=transcript_data,
-                metadata={
-                    "transcript_file": filename,
-                    "message_count": len(transcript_data.get("items", [])),
-                    "call_ended_at": datetime.now().isoformat(),
-                    "transcript_text": transcript_text,
-                }
-            )
-
-            logger.info("Langfuse trace updated with transcript data")
+            # Update Langfuse trace with final data
+            if span and langfuse:
+                try:
+                    span.update_trace(
+                        output=transcript_data,
+                        metadata={
+                            "message_count": len(transcript_data.get("items", [])),
+                            "call_ended_at": datetime.now().isoformat(),
+                            "transcript_text": transcript_text,
+                        }
+                    )
+                    logger.info("Langfuse trace updated with transcript data")
+                except Exception as trace_error:
+                    logger.warning("Failed to update Langfuse trace: %s", trace_error)
 
         except Exception as e:
             logger.error("Failed to save transcript or update trace: %s", e, exc_info=True)
         finally:
             # Always close out the Langfuse span even if transcript persistence fails
-            try:
-                span.end()
-                langfuse.flush()
-                logger.info("Langfuse span closed and data flushed")
-            except Exception as span_error:
-                logger.error("Failed to close Langfuse span cleanly: %s", span_error, exc_info=True)
+            if span and langfuse:
+                try:
+                    span.end()
+                    langfuse.flush()
+                    logger.info("Langfuse span closed and data flushed")
+                except Exception as span_error:
+                    logger.warning("Failed to close Langfuse span cleanly: %s", span_error)
 
     # Register the callback to run when session ends
     ctx.add_shutdown_callback(save_transcript)
