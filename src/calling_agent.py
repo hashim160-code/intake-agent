@@ -284,17 +284,17 @@ async def entrypoint(ctx: JobContext):
     else:
         organization_profile = organization_result
 
-    patient_name = (
-        (patient_profile or {}).get("full_name")
-        or DEFAULT_PATIENT_NAME
-    )
-    organization_name = (
-        (organization_profile or {}).get("name")
-        or DEFAULT_ORGANIZATION_NAME
-    )
-    if patient_name == DEFAULT_PATIENT_NAME:
+    # Extract names with fallback to defaults
+    if patient_profile and patient_profile.get("full_name"):
+        patient_name = patient_profile.get("full_name")
+    else:
+        patient_name = DEFAULT_PATIENT_NAME
         logger.info("Using default patient name; dynamic profile unavailable")
-    if organization_name == DEFAULT_ORGANIZATION_NAME:
+
+    if organization_profile and organization_profile.get("name"):
+        organization_name = organization_profile.get("name")
+    else:
+        organization_name = DEFAULT_ORGANIZATION_NAME
         logger.info("Using default organization name; dynamic profile unavailable")
 
     logger.info(
@@ -321,6 +321,9 @@ async def entrypoint(ctx: JobContext):
                 "room_name": ctx.room.name
             }
 
+            # Get environment from env variable (development, staging, production)
+            environment = os.getenv("ENVIRONMENT", "development")
+
             span.update_trace(
                 user_id=patient_id,
                 session_id=ctx.room.name,
@@ -329,9 +332,10 @@ async def entrypoint(ctx: JobContext):
                     "organization_id": organization_id,
                     "template_id": template_id,
                     "job_id": ctx.job.id,
-                    "call_started_at": datetime.now().isoformat()
+                    "call_started_at": datetime.now().isoformat(),
+                    "environment": environment
                 },
-                tags=["production", "intake-agent"]
+                tags=[environment, "intake-agent"]
             )
 
             logger.info("Langfuse trace started for call session")
