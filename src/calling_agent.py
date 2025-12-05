@@ -119,6 +119,7 @@ class IntakeAgent(Agent):
         patient_name: Optional[str] = None,
         organization_name: Optional[str] = None,
         agent_name: Optional[str] = None,
+        instructions: Optional[str] = None,
     ) -> None:
         self.template_id = template_id
         self.organization_id = organization_id
@@ -127,11 +128,11 @@ class IntakeAgent(Agent):
         self.organization_name = organization_name or DEFAULT_ORGANIZATION_NAME
         self.agent_name = agent_name or AGENT_NAME
 
-        # Use fallback instructions initially
-        instructions = get_fallback_instructions()
+        # Use provided instructions or fallback
+        final_instructions = instructions if instructions else get_fallback_instructions()
 
         super().__init__(
-            instructions=instructions,
+            instructions=final_instructions,
             stt=deepgram.STT(
                 model="nova-3",
                 language="en-US",
@@ -151,36 +152,19 @@ class IntakeAgent(Agent):
         )
 
     async def on_enter(self):
-        """Called when agent enters the room"""
+        """Called when agent enters the room - Stage 2"""
         patient_name = self.patient_name
         organization_name = self.organization_name
         agent_name = self.agent_name
+
+        # Generate greeting
         greeting_template = random.choice(GREETING_VARIATIONS)
         greeting = greeting_template.format(
             agent=agent_name, patient=patient_name, organization=organization_name
         )
 
-        try:
-            logger.info("Loading data for template %s", self.template_id)
-            logger.info("Organization ID: %s", self.organization_id)
-            logger.info("Patient ID: %s", self.patient_id)
-
-            instructions = await generate_instructions_from_api(
-                template_id=self.template_id,
-                organization_id=self.organization_id,
-                patient_id=self.patient_id,
-                prefilled_greeting=greeting,
-            )
-
-            if instructions:
-                await self.update_instructions(instructions)
-                logger.info("Dynamic instructions applied")
-                logger.info("Instructions preview: %s...", instructions[:200])
-            else:
-                logger.warning("Empty instructions returned; keeping fallback prompt")
-        except Exception as e:
-            logger.error("Failed to load dynamic instructions: %s", e, exc_info=True)
-            logger.error("Using fallback instructions instead")
+        logger.info("Agent entering room - Template: %s, Org: %s, Patient: %s",
+                   self.template_id, self.organization_id, self.patient_id)
 
         # Small delay to ensure audio stream is ready before speaking
         await asyncio.sleep(0.5)
@@ -304,6 +288,34 @@ async def entrypoint(ctx: JobContext):
         patient_id,
     )
 
+    # STAGE 1: Fetch template instructions during dispatch (before room entry)
+    logger.info("Stage 1 (Dispatch): Fetching template instructions")
+    instructions = None
+    try:
+        # Generate a temporary greeting for instructions compilation
+        greeting_template = random.choice(GREETING_VARIATIONS)
+        temp_greeting = greeting_template.format(
+            agent=AGENT_NAME,
+            patient=patient_name,
+            organization=organization_name
+        )
+
+        instructions = await generate_instructions_from_api(
+            template_id=template_id,
+            organization_id=organization_id,
+            patient_id=patient_id,
+            prefilled_greeting=temp_greeting,
+        )
+
+        if instructions:
+            logger.info("Template instructions fetched successfully during dispatch")
+            logger.info("Instructions preview: %s...", instructions[:200])
+        else:
+            logger.warning("Empty instructions returned; will use fallback")
+    except Exception as e:
+        logger.error("Failed to fetch template instructions during dispatch: %s", e, exc_info=True)
+        logger.warning("Will use fallback instructions")
+
     # Start Langfuse span and set initial trace attributes (with null check)
     span = None
     if langfuse:
@@ -352,6 +364,8 @@ async def entrypoint(ctx: JobContext):
         user_away_timeout=15,               # Handle silence (matching voice/ agent)
     )
 
+    # STAGE 2: Start session with pre-fetched instructions
+    logger.info("Stage 2: Starting agent session with room entry")
     await session.start(
         agent=IntakeAgent(
             template_id=template_id,
@@ -359,6 +373,7 @@ async def entrypoint(ctx: JobContext):
             patient_id=patient_id,
             patient_name=patient_name,
             organization_name=organization_name,
+            instructions=instructions,  # Pass pre-fetched instructions from Stage 1
         ),
         room=ctx.room,
         room_input_options=RoomInputOptions(
@@ -366,8 +381,10 @@ async def entrypoint(ctx: JobContext):
         ),
     )
 
-    # Save transcript when session ends
+    # STAGE 3: Save transcript when session ends (cleanup/disconnect)
     async def save_transcript():
+        """Stage 3 - Called on room disconnect for cleanup tasks"""
+        logger.info("Stage 3 (Cleanup): Saving transcript and flushing observability data")
         try:
             # Get conversation history
             transcript_data = session.history.to_dict()
