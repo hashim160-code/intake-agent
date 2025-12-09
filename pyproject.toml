@@ -13,12 +13,13 @@ authors = [
 ]
 
 dependencies = [
-    "livekit-agents[google,baseten]>=1.2.0",
+    "livekit-agents>=1.2.0",  # Removed [google] extra - it pulls in turn-detector
     "livekit-plugins-deepgram>=0.1.0",
     "livekit-plugins-silero>=0.1.0",
     "livekit-plugins-cartesia>=0.1.0",
     "livekit-plugins-openai>=1.2.0",
-    "livekit-plugins-turn-detector>=0.1.0",
+    "livekit-plugins-groq>=0.1.0",
+    "livekit-plugins-turn-detector>=0.1.0",  # Re-enabled: models now embedded in Docker image
     "livekit-plugins-noise-cancellation>=0.1.0",
     "python-dotenv>=1.0.0",
     "typing-extensions>=4.8.0",
@@ -26,7 +27,7 @@ dependencies = [
     "uvicorn>=0.24.0",
     "supabase>=2.0.0",
     "httpx>=0.25.0",
-    "langfuse>=3.0.0",
+    "langfuse>=2.0.0",
 ]
 
 [project.scripts]

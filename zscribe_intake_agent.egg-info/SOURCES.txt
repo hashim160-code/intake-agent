@@ -1,10 +1,9 @@
 README.md
 pyproject.toml
 src/__init__.py
-src/api_client.py
-src/api_server.py
 src/calling_agent.py
 src/db_utils.py
+src/download_models.py
 src/intake_api.py
 src/make_call.py
 src/prompts.py

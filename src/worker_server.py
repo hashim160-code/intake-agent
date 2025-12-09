@@ -18,6 +18,7 @@ def main():
 
         # Import entrypoint and prewarm from calling_agent
         from src.calling_agent import entrypoint, prewarm
+        import sys
 
         # Get port from environment (Cloud Run uses PORT env var)
         port = int(os.getenv("PORT", "8080"))
@@ -36,6 +37,9 @@ def main():
         )
 
         logger.info(f"Starting worker on port {port}")
+        # Add 'start' command to sys.argv for cli.run_app
+        if len(sys.argv) == 1:
+            sys.argv.append("start")
         cli.run_app(worker_options)
 
     except Exception as e:

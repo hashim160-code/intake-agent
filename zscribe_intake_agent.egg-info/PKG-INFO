@@ -5,11 +5,12 @@ Summary: AI-powered medical intake agent for ZScribe platform
 Author-email: ZScribe Team <team@zscribe.com>
 License: MIT
 Requires-Python: >=3.11
-Requires-Dist: livekit-agents[baseten,google]>=1.2.0
+Requires-Dist: livekit-agents[google]>=1.2.0
 Requires-Dist: livekit-plugins-deepgram>=0.1.0
 Requires-Dist: livekit-plugins-silero>=0.1.0
 Requires-Dist: livekit-plugins-cartesia>=0.1.0
 Requires-Dist: livekit-plugins-openai>=1.2.0
+Requires-Dist: livekit-plugins-groq>=0.1.0
 Requires-Dist: livekit-plugins-turn-detector>=0.1.0
 Requires-Dist: livekit-plugins-noise-cancellation>=0.1.0
 Requires-Dist: python-dotenv>=1.0.0

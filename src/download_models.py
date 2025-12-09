@@ -1,7 +1,8 @@
 import logging
 
 from livekit import agents
-from livekit.plugins import noise_cancellation, silero, turn_detector
+from livekit.plugins import noise_cancellation, silero
+from livekit.plugins import turn_detector
 from livekit.plugins.turn_detector.english import EnglishModel
 logging.basicConfig(level=logging.INFO)
 

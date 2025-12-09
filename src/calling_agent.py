@@ -48,8 +48,8 @@ import asyncio
 from dotenv import load_dotenv
 from livekit.agents import JobContext, WorkerOptions, cli, RoomInputOptions, JobProcess
 from livekit.agents.voice import Agent
-from livekit.agents import AgentSession, inference
-from livekit.plugins import silero, deepgram, noise_cancellation
+from livekit.agents import AgentSession
+from livekit.plugins import silero, deepgram, noise_cancellation, groq
 from livekit.plugins.turn_detector.english import EnglishModel
 from src.prompts import generate_instructions_from_api, get_fallback_instructions
 from datetime import datetime
@@ -138,14 +138,9 @@ class IntakeAgent(Agent):
                 language="en-US",
                 smart_format=True,
             ),
-            llm=inference.LLM(
-                model="moonshotai/Kimi-K2-Instruct-0905",
-                provider="baseten",
-                extra_kwargs={
-                    "max_tokens": 4000,
-                    "temperature": 0.2,
-                    "top_p": 0.5,
-                },
+            llm=groq.LLM(
+                model="moonshotai/kimi-k2-instruct-0905",
+                temperature=0.2,
             ),
             tts=deepgram.TTS(model="aura-2-thalia-en", mip_opt_out=True),
             vad=_vad_model,
@@ -357,9 +352,9 @@ async def entrypoint(ctx: JobContext):
     else:
         logger.debug("Langfuse not available - skipping tracing")
 
-    # AgentSession with EnglishModel turn detection (matching voice/ agent)
+    # AgentSession with turn detection (models now embedded in Docker image)
     session = AgentSession(
-        turn_detection=EnglishModel(),      # AI-powered turn detection
+        turn_detection=EnglishModel(),      # Re-enabled: model files embedded in Docker image
         min_interruption_words=2,           # Allow natural interruptions
         user_away_timeout=15,               # Handle silence (matching voice/ agent)
     )

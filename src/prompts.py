@@ -30,6 +30,17 @@ except Exception as e:
     logger.error("Failed to initialize Langfuse prompt client: %s - will use fallback instructions", e, exc_info=True)
     langfuse_client = None
 
+def _append_greeting_note(text: str, prefilled_greeting: Optional[str]) -> str:
+    """Append greeting note to instructions if greeting was prefilled"""
+    if not prefilled_greeting:
+        return text
+    return (
+        f"{text}\n\nNOTE: The assistant has already greeted the patient by saying "
+        f"\"{prefilled_greeting}\" and has already asked if it's a good time to talk. "
+        "Do NOT repeat the introduction or permission question unless the patient indicates they didn't hear it. "
+        "Wait for the patient's reply to that greeting before continuing with the intake flow."
+    )
+
 async def generate_instructions_from_api(
     template_id: str,
     organization_id: str | None = None,
@@ -38,16 +49,6 @@ async def generate_instructions_from_api(
 ) -> str:
     """Generate complete instructions from Langfuse prompt template with API data"""
 
-    def append_greeting_note(text: str) -> str:
-        if not prefilled_greeting:
-            return text
-        return (
-            f"{text}\n\nNOTE: The assistant has already greeted the patient by saying "
-            f"\"{prefilled_greeting}\" and has already asked if it's a good time to talk. "
-            "Do NOT repeat the introduction or permission question unless the patient indicates they didn't hear it. "
-            "Wait for the patient's reply to that greeting before continuing with the intake flow."
-        )
-
     # Fetch all data in parallel
     template_data = await fetch_template(template_id)
     patient_data = await fetch_patient(patient_id) if patient_id else None
@@ -55,7 +56,7 @@ async def generate_instructions_from_api(
 
     if not template_data:
         logger.warning("Template data not available, using fallback instructions")
-        return append_greeting_note(get_fallback_instructions())
+        return _append_greeting_note(get_fallback_instructions(), prefilled_greeting)
 
     # Extract the data
     template_name = template_data.get('template_name', 'Intake Form')
@@ -67,9 +68,12 @@ async def generate_instructions_from_api(
 
     # Format questions list
     questions_list = ""
-    for i, question in enumerate(questions, 1):
-        question_text = question.get('text', 'Question not available')
-        questions_list += f"{i}. {question_text}\n"
+    question_number = 1
+    for question in questions:
+        question_text = question.get('text', '').strip()
+        if question_text:  # Only include questions with actual text
+            questions_list += f"{question_number}. {question_text}\n"
+            question_number += 1
 
     # Fetch prompt from Langfuse (with null check)
     if langfuse_client:
@@ -86,14 +90,14 @@ async def generate_instructions_from_api(
             )
 
             logger.info("Successfully fetched and compiled prompt from Langfuse")
-            return append_greeting_note(instructions)
+            return _append_greeting_note(instructions, prefilled_greeting)
 
         except Exception as e:
             logger.error(f"Failed to fetch prompt from Langfuse: {e}, using fallback")
-            return append_greeting_note(get_fallback_instructions())
+            return _append_greeting_note(get_fallback_instructions(), prefilled_greeting)
     else:
         logger.warning("Langfuse client not available, using fallback instructions")
-        return append_greeting_note(get_fallback_instructions())
+        return _append_greeting_note(get_fallback_instructions(), prefilled_greeting)
 
 def get_fallback_instructions() -> str:
     """Get fallback instructions when Langfuse or API is not available"""

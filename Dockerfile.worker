@@ -3,15 +3,22 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install system dependencies (including ffmpeg for audio processing)
+# Install system dependencies
 RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
     make \
     libffi-dev \
     libssl-dev \
-    ffmpeg \
     && rm -rf /var/lib/apt/lists/*
+
+# Set HuggingFace cache directories (same as voice/ agent)
+ENV HF_HOME=/app/.cache/huggingface
+ENV HF_HUB_CACHE=/app/.cache/huggingface/hub
+ENV TRANSFORMERS_CACHE=/app/.cache/huggingface/transformers
+
+# Create cache directories with proper permissions
+RUN mkdir -p /app/.cache/huggingface/hub /app/.cache/huggingface/transformers
 
 # Copy dependency files
 COPY pyproject.toml ./
@@ -20,22 +27,17 @@ COPY pyproject.toml ./
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir .
 
+# Copy download script and download models (cached separately from app code)
+COPY src/download_models.py ./src/download_models.py
+RUN python src/download_models.py download-files
+
 # Copy all source files (worker needs access to api_client, prompts, etc.)
 COPY src/ ./src/
 
-# Set environment variables for model caching (aligned with voice/ agent)
+# Set environment variables
 ENV PYTHONUNBUFFERED=1
+ENV PYTHONPATH=/app
 ENV PORT=8080
-ENV PYTHONPATH=/app/src
-ENV HF_HOME=/app/.cache/huggingface
-ENV HF_HUB_CACHE=/app/.cache/huggingface/hub
-
-# Create cache directories with proper permissions (before downloading models)
-RUN mkdir -p /app/.cache/huggingface/hub /app/.cache/huggingface/transformers
-
-# Download models during build using download_models.py
-# This triggers LiveKit's built-in model downloading for all plugins
-RUN python src/download_models.py download-files || echo "Model download completed with warnings (expected for some models)"
 
 # Expose port for health checks
 EXPOSE 8080
